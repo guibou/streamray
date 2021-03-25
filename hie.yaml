@@ -1,0 +1,8 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:streamray"
+    - path: "./tests"
+      component: "test:test"
+    - path: "app"
+      component: "exe:streamray"
