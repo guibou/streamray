@@ -26,14 +26,18 @@ data Sphere = Sphere
   deriving (Show)
 
 -- | Returns the first intersection (if any) of a ray with a bunch of spheres.
-rayIntersectSpheres :: Ray -> [Sphere] -> Maybe (Float, Sphere)
-rayIntersectSpheres ray spheres = case intersections of
+rayIntersectObjets :: Ray -> [Object] -> Maybe (Float, Object)
+rayIntersectObjets ray objects = case intersections of
   [] -> Nothing
   l -> Just $ minimumBy (comparing fst) l
   where
-    intersectionsMaybe :: [Maybe (Float, Sphere)]
-    intersectionsMaybe = map (\s -> (,s) <$> rayIntersectSphere ray s) spheres
+    intersectionsMaybe = map (rayIntersectObject ray) objects
     intersections = catMaybes intersectionsMaybe
+
+rayIntersectObject :: Ray -> Object -> Maybe (Float, Object)
+rayIntersectObject ray o@(Object _ sphere) = case rayIntersectSphere ray sphere of
+  Nothing -> Nothing
+  Just t -> Just (t, o)
 
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
@@ -97,23 +101,53 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
           | otherwise -> Nothing -- neither t0 or t1 are positive, the ray is starting after the sphere.
 
 -- | Initial scene
-scene :: [Sphere]
+scene :: [Object]
 scene =
-  [ Sphere (V3 255 255 300) 200,
-    Sphere (V3 0 255 300) 100
+  [ Object
+      (Material (V3 1 0 0) Diffuse)
+      (Sphere (V3 (sphereRadius + 450) 255 0) sphereRadius), -- Right
+    Object
+      (Material (V3 0 0 1) Diffuse)
+      (Sphere (V3 (- sphereRadius + 50) 255 0) sphereRadius), -- Left
+    Object
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 255 (- sphereRadius + 50) 0) sphereRadius), -- Top
+    Object
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 255 (sphereRadius + 450) 0) sphereRadius), -- Bottom
+    Object
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 255 255 (sphereRadius + 500)) sphereRadius), -- Back
+      -- Small sphere 1
+    Object
+      (Material (V3 0 0 0) Diffuse)
+      (Sphere (V3 0 255 300) 100)
   ]
 
+data Object = Object Material Sphere
+  deriving (Show)
+
+data Material
+  = Material (V3 Float) MaterialBehavior
+  deriving (Show)
+
+data MaterialBehavior = Diffuse | Glass | Mirror
+  deriving (Show)
+
+sphereRadius :: Float
+sphereRadius = 5000
+
 lightPosition :: V3 Float
-lightPosition = V3 255 (-1000) 255
+lightPosition = V3 255 255 255
 
 (-->) :: Num a => a -> a -> a
 x --> y = y - x
 
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: Ray -> PixelRGBA8
-radiance ray = case rayIntersectSpheres ray scene of
+radiance ray = case rayIntersectObjets ray scene of
   Nothing -> PixelRGBA8 255 0 0 255
-  Just (t, sphere) -> do
+  Just (t, Object (Material albedo behavior) sphere) -> do
     let x = origin ray + t *^ direction ray
         directionToLight = normalize (x --> lightPosition)
         normal = normalize (center sphere --> x)
@@ -121,9 +155,7 @@ radiance ray = case rayIntersectSpheres ray scene of
         -- TODO: handle light distance and surface factors
         coef = dot normal directionToLight
 
-        color = V3 coef coef coef
-
-    tonemap color
+    tonemap (coef *^ albedo)
 
 {-
    coef_lumineux = dot normal directionToTheLight
