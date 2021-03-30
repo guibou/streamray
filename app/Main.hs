@@ -143,7 +143,10 @@ sphereRadius :: Float
 sphereRadius = 5000
 
 lightPosition :: V3 Float
-lightPosition = V3 255 255 255
+lightPosition = V3 250 250 250
+
+lightEmission :: V3 Float
+lightEmission = V3 30000 30000 30000
 
 (-->) :: Num a => a -> a -> a
 x --> y = y - x
@@ -151,16 +154,18 @@ x --> y = y - x
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: Ray -> PixelRGBA8
 radiance ray = case rayIntersectObjets ray scene of
-  Nothing -> PixelRGBA8 255 0 0 255
+  Nothing -> PixelRGBA8 0 0 0 255
   Just (t, Object (Material albedo behavior) sphere) -> do
     let x = origin ray + t *^ direction ray
-        directionToLight = normalize (x --> lightPosition)
+        directionToLight = x --> lightPosition
         normal = normalize (center sphere --> x)
 
         -- TODO: handle light distance and surface factors
-        coef = dot normal directionToLight
+        coef = dot normal (normalize directionToLight) / lightDistance2
 
-    tonemap (coef *^ albedo)
+        lightDistance2 = dot directionToLight directionToLight
+
+    tonemap (lightEmission * (coef *^ albedo))
 
 {-
    coef_lumineux = dot normal directionToTheLight
