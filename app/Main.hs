@@ -103,7 +103,7 @@ scene =
 radiance :: Ray -> PixelRGBA8
 radiance ray = case rayIntersectSpheres ray scene of
   Nothing -> PixelRGBA8 255 0 0 255
-  Just (min 255 . truncate -> t) -> PixelRGBA8 t t t 255
+  Just (truncate . min 255 -> t) -> PixelRGBA8 t t t 255
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
