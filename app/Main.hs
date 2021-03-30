@@ -104,24 +104,29 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
 scene :: [Object]
 scene =
   [ Object
-      (Material (V3 1 0 0) Diffuse)
-      (Sphere (V3 (sphereRadius + 450) 255 0) sphereRadius), -- Right
+      (Material (V3 1 1 0) Diffuse)
+      (Sphere (V3 (sphereRadius + 500) 250 0) sphereRadius), -- Right
     Object
-      (Material (V3 0 0 1) Diffuse)
-      (Sphere (V3 (- sphereRadius + 50) 255 0) sphereRadius), -- Left
-    Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 255 (- sphereRadius + 50) 0) sphereRadius), -- Top
+      (Material (V3 0 1 1) Diffuse)
+      (Sphere (V3 (- sphereRadius) 250 0) sphereRadius), -- Left
     Object
       (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 255 (sphereRadius + 450) 0) sphereRadius), -- Bottom
+      (Sphere (V3 250 (- sphereRadius) 0) sphereRadius), -- Top
     Object
       (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 255 255 (sphereRadius + 500)) sphereRadius), -- Back
+      (Sphere (V3 250 (sphereRadius + 500) 0) sphereRadius), -- Bottom
+    Object
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 250 250 (sphereRadius + 500)) sphereRadius), -- Back
       -- Small sphere 1
     Object
-      (Material (V3 0 0 0) Diffuse)
-      (Sphere (V3 0 255 300) 100)
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 150 350 350) 80),
+    --
+    -- Small sphere 1
+    Object
+      (Material (V3 1 1 1) Diffuse)
+      (Sphere (V3 350 350 350) 80)
   ]
 
 data Object = Object Material Sphere
@@ -169,10 +174,29 @@ tonemap v =
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
 raytrace :: Int -> Int -> PixelRGBA8
-raytrace x y = radiance ray
+raytrace (fromIntegral -> x) (fromIntegral -> y) = radiance ray
   where
     -- Generate a ray in the XY plane and pointing in the Z direction
-    ray = Ray (V3 (fromIntegral x) (fromIntegral y) 0) (V3 0 0 1)
+    coefOpening = 1.001
+
+    n = V3 x y 0
+
+    -- n' is on the plane [-250:250]
+    n'@(V3 x' y' 0) = n - V3 250 250 0
+    f = V3 (coefOpening * x') (coefOpening * y') 1
+
+    d = normalize (n' --> f)
+    ray = Ray n d
+
+{-
+----> x
+|    |
+|    |
+n    |
+|    |
+|    f
+
+      -}
 
 main :: IO ()
 main = writePng "first_image.png" $ generateImage raytrace 500 500
