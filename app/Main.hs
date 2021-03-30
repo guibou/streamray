@@ -168,7 +168,7 @@ radiance ray = case rayIntersectObjets ray scene of
 -}
 tonemap :: V3 Float -> PixelRGBA8
 tonemap v =
-  let V3 x y z = truncate . max 0 . min 255 <$> (v * 255)
+  let V3 x y z = truncate . max 0 . min 255 <$> ((v ** (1 / 2.2)) * 255)
    in PixelRGBA8 x y z 255
 
 -- | Raytrace a 500x500 image
