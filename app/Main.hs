@@ -25,7 +25,7 @@ data Sphere = Sphere
   }
   deriving (Show)
 
--- | Returns the first intersection (if any) of a ray with a bunch of spheres.
+-- | Returns the first intersection (if any) of a ray with a bunch of objets
 rayIntersectObjets :: Ray -> [Object] -> Maybe (Float, Object)
 rayIntersectObjets ray objects = case intersections of
   [] -> Nothing
@@ -34,11 +34,13 @@ rayIntersectObjets ray objects = case intersections of
     intersectionsMaybe = map (rayIntersectObject ray) objects
     intersections = catMaybes intersectionsMaybe
 
+-- | Intersection between an object and ray
 rayIntersectObject :: Ray -> Object -> Maybe (Float, Object)
 rayIntersectObject ray o@(Object _ sphere) = case rayIntersectSphere ray sphere of
   Nothing -> Nothing
   Just t -> Just (t, o)
 
+-- | Intersection between an object and sphere
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
   let -- >>> A point X on a ray is:
@@ -101,6 +103,9 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
           | otherwise -> Nothing -- neither t0 or t1 are positive, the ray is starting after the sphere.
 
 -- | Initial scene
+sphereRadius :: Float
+sphereRadius = 5000
+
 scene :: [Object]
 scene =
   [ Object
@@ -129,18 +134,23 @@ scene =
       (Sphere (V3 350 350 350) 80)
   ]
 
+-- | Represents a object, with its shape and material
 data Object = Object Material Sphere
   deriving (Show)
 
+-- | Material, with albedo and behavior
 data Material
   = Material (V3 Float) MaterialBehavior
   deriving (Show)
 
-data MaterialBehavior = Diffuse | Glass | Mirror
+data MaterialBehavior
+  = -- | A diffuse material, which scatters light in every directions
+    Diffuse
+  | -- | A glass material, not used yet
+    Glass
+  | -- | A mirror material, not used yet
+    Mirror
   deriving (Show)
-
-sphereRadius :: Float
-sphereRadius = 5000
 
 lightPosition :: V3 Float
 lightPosition = V3 250 250 250
@@ -167,12 +177,12 @@ radiance ray = case rayIntersectObjets ray scene of
 
     tonemap (lightEmission * (coef *^ albedo))
 
-{-
-   coef_lumineux = dot normal directionToTheLight
-
--}
+-- | Convert a light measure to a pixel value
 tonemap :: V3 Float -> PixelRGBA8
 tonemap v =
+  -- truncate converts to Word8
+  -- min/max clamps to the acceptable range
+  -- pow (1 / 2.2) is doing gamma correction
   let V3 x y z = truncate . max 0 . min 255 <$> ((v ** (1 / 2.2)) * 255)
    in PixelRGBA8 x y z 255
 
@@ -192,16 +202,6 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) = radiance ray
 
     d = normalize (n' --> f)
     ray = Ray n d
-
-{-
-----> x
-|    |
-|    |
-n    |
-|    |
-|    f
-
-      -}
 
 main :: IO ()
 main = writePng "first_image.png" $ generateImage raytrace 500 500
