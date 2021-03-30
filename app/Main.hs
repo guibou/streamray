@@ -1,11 +1,14 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Main where
 
 import Codec.Picture
+import Data.List
 import Data.Maybe
+import Data.Ord (comparing)
 import Linear
 
 -- | This is a ray
@@ -23,12 +26,13 @@ data Sphere = Sphere
   deriving (Show)
 
 -- | Returns the first intersection (if any) of a ray with a bunch of spheres.
-rayIntersectSpheres :: Ray -> [Sphere] -> Maybe Float
+rayIntersectSpheres :: Ray -> [Sphere] -> Maybe (Float, Sphere)
 rayIntersectSpheres ray spheres = case intersections of
   [] -> Nothing
-  l -> Just $ minimum l
+  l -> Just $ minimumBy (comparing fst) l
   where
-    intersectionsMaybe = map (rayIntersectSphere ray) spheres
+    intersectionsMaybe :: [Maybe (Float, Sphere)]
+    intersectionsMaybe = map (\s -> (,s) <$> rayIntersectSphere ray s) spheres
     intersections = catMaybes intersectionsMaybe
 
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
@@ -99,11 +103,36 @@ scene =
     Sphere (V3 0 255 300) 100
   ]
 
+lightPosition :: V3 Float
+lightPosition = V3 255 (-1000) 255
+
+(-->) :: Num a => a -> a -> a
+x --> y = y - x
+
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: Ray -> PixelRGBA8
 radiance ray = case rayIntersectSpheres ray scene of
   Nothing -> PixelRGBA8 255 0 0 255
-  Just (truncate . min 255 -> t) -> PixelRGBA8 t t t 255
+  Just (t, sphere) -> do
+    let x = origin ray + t *^ direction ray
+        directionToLight = normalize (x --> lightPosition)
+        normal = normalize (center sphere --> x)
+
+        -- TODO: handle light distance and surface factors
+        coef = dot normal directionToLight
+
+        color = V3 coef coef coef
+
+    tonemap color
+
+{-
+   coef_lumineux = dot normal directionToTheLight
+
+-}
+tonemap :: V3 Float -> PixelRGBA8
+tonemap v =
+  let V3 x y z = truncate . max 0 . min 255 <$> (v * 255)
+   in PixelRGBA8 x y z 255
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
