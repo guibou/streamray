@@ -8,6 +8,7 @@
     ".*\\.hs$"
     ".*\\.md$"
     "src"
+    "src/Streamray"
     "app"
     "tests"
     "LICENSE"

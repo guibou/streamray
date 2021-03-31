@@ -1,6 +1,9 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Main where
@@ -9,18 +12,19 @@ import Codec.Picture
 import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
-import Linear
+
+import Streamray.Linear
 
 -- | This is a ray
 -- Any point X on the ray can be represented using X = Origin + t * Direction.
 data Ray = Ray
-  { origin :: V3 Float,
-    direction :: V3 Float
+  { origin :: V3 'Position,
+    direction :: V3 ('Direction 'Normalized)
   }
   deriving (Show)
 
 data Sphere = Sphere
-  { center :: V3 Float,
+  { center :: V3 'Position,
     radius :: Float
   }
   deriving (Show)
@@ -65,7 +69,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       --
       -- >>> introduces some simplifications
 
-      oc = center - origin
+      oc = origin --> center
       r2 = radius ** 2
       -- length(t * D - OC) ^ 2 = r2
       --
@@ -88,7 +92,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       -- t ^ 2 * a + t * b + c = 0
 
       a = dot direction direction
-      b = -2 * dot direction oc
+      b = - 2 * dot direction oc
       c = dot oc oc - r2
 
       delta = b ** 2 - 4 * a * c
@@ -109,29 +113,29 @@ sphereRadius = 5000
 scene :: [Object]
 scene =
   [ Object
-      (Material (V3 1 1 0) Diffuse)
-      (Sphere (V3 (sphereRadius + 500) 250 0) sphereRadius), -- Right
+      (Material (C 1 1 0) Diffuse)
+      (Sphere (P (sphereRadius + 500) 250 0) sphereRadius), -- Right
     Object
-      (Material (V3 0 1 1) Diffuse)
-      (Sphere (V3 (- sphereRadius) 250 0) sphereRadius), -- Left
+      (Material (C 0 1 1) Diffuse)
+      (Sphere (P (- sphereRadius) 250 0) sphereRadius), -- Left
     Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 250 (- sphereRadius) 0) sphereRadius), -- Top
+      (Material (C 1 1 1) Diffuse)
+      (Sphere (P 250 (- sphereRadius) 0) sphereRadius), -- Top
     Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 250 (sphereRadius + 500) 0) sphereRadius), -- Bottom
+      (Material (C 1 1 1) Diffuse)
+      (Sphere (P 250 (sphereRadius + 500) 0) sphereRadius), -- Bottom
     Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 250 250 (sphereRadius + 500)) sphereRadius), -- Back
+      (Material (C 1 1 1) Diffuse)
+      (Sphere (P 250 250 (sphereRadius + 500)) sphereRadius), -- Back
       -- Small sphere 1
     Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 150 350 350) 80),
+      (Material (C 1 1 1) Diffuse)
+      (Sphere (P 150 350 350) 80),
     --
     -- Small sphere 1
     Object
-      (Material (V3 1 1 1) Diffuse)
-      (Sphere (V3 350 350 350) 80)
+      (Material (C 1 1 1) Diffuse)
+      (Sphere (P 350 350 350) 80)
   ]
 
 -- | Represents a object, with its shape and material
@@ -140,7 +144,7 @@ data Object = Object Material Sphere
 
 -- | Material, with albedo and behavior
 data Material
-  = Material (V3 Float) MaterialBehavior
+  = Material (V3 'Color) MaterialBehavior
   deriving (Show)
 
 data MaterialBehavior
@@ -152,21 +156,21 @@ data MaterialBehavior
     Mirror
   deriving (Show)
 
-lightPosition :: V3 Float
-lightPosition = V3 250 250 250
+lightPosition :: V3 'Position
+lightPosition = P 250 250 250
 
-lightEmission :: V3 Float
-lightEmission = V3 30000 30000 30000
+lightEmission :: V3 'Color
+lightEmission = C 30000 30000 30000
 
-(-->) :: Num a => a -> a -> a
-x --> y = y - x
+(-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)
+x --> y = y .-. x
 
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: Ray -> PixelRGBA8
 radiance ray = case rayIntersectObjets ray scene of
   Nothing -> PixelRGBA8 0 0 0 255
   Just (t, Object (Material albedo behavior) sphere) -> do
-    let x = origin ray + t *^ direction ray
+    let x = origin ray .+. t .*. direction ray
         directionToLight = x --> lightPosition
         normal = normalize (center sphere --> x)
 
@@ -175,16 +179,19 @@ radiance ray = case rayIntersectObjets ray scene of
 
         lightDistance2 = dot directionToLight directionToLight
 
-    tonemap (lightEmission * (coef *^ albedo))
+    tonemap (lightEmission .*. (coef .*. albedo))
 
 -- | Convert a light measure to a pixel value
-tonemap :: V3 Float -> PixelRGBA8
-tonemap v =
-  -- truncate converts to Word8
-  -- min/max clamps to the acceptable range
-  -- pow (1 / 2.2) is doing gamma correction
-  let V3 x y z = truncate . max 0 . min 255 <$> ((v ** (1 / 2.2)) * 255)
-   in PixelRGBA8 x y z 255
+tonemap :: V3 'Color -> PixelRGBA8
+tonemap v = PixelRGBA8 x y z 255
+  where
+    -- truncate converts to Word8
+    -- min/max clamps to the acceptable range
+    -- pow (1 / 2.2) is doing gamma correction
+    C (ftonemap -> x) (ftonemap -> y) (ftonemap -> z) = v
+
+ftonemap :: Float -> Pixel8
+ftonemap = truncate @Float @Pixel8 . max 0 . min 255 . (* 255) . (** (1 / 2.2))
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
@@ -194,11 +201,11 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) = radiance ray
     -- Generate a ray in the XY plane and pointing in the Z direction
     coefOpening = 1.001
 
-    n = V3 x y 0
+    n = P x y 0
 
     -- n' is on the plane [-250:250]
-    n'@(V3 x' y' 0) = n - V3 250 250 0
-    f = V3 (coefOpening * x') (coefOpening * y') 1
+    n'@(P x' y' 0) = n .-. D 250 250 0
+    f = P (coefOpening * x') (coefOpening * y') 1
 
     d = normalize (n' --> f)
     ray = Ray n d
