@@ -12,7 +12,6 @@ import Codec.Picture
 import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
-
 import Streamray.Linear
 
 -- | This is a ray
@@ -131,7 +130,6 @@ scene =
     Object
       (Material (C 1 1 1) Diffuse)
       (Sphere (P 150 350 350) 80),
-    --
     -- Small sphere 1
     Object
       (Material (C 1 1 1) Diffuse)
@@ -174,12 +172,35 @@ radiance ray = case rayIntersectObjets ray scene of
         directionToLight = x --> lightPosition
         normal = normalize (center sphere --> x)
 
-        -- TODO: handle light distance and surface factors
-        coef = dot normal (normalize directionToLight) / lightDistance2
+        -- TODO: handle surface factors
+        directionToLightNormalized = normalize directionToLight
+        coef = max 0 (dot normal directionToLightNormalized / lightDistance2)
 
         lightDistance2 = dot directionToLight directionToLight
 
-    tonemap (lightEmission .*. (coef .*. albedo))
+        -- Trace a ray toward the light source and check for intersection
+        canSeeLightSource = case rayIntersectObjets
+          ( Ray
+              -- The origin of the ray is biased toward the light to avoid self
+              -- shadows if the point is slightly under the surface due to
+              -- floating point approximations.
+              ( x
+                  .+. epsilon .*. directionToLightNormalized
+              )
+              directionToLightNormalized
+          )
+          scene of
+          -- No intersection, we see the light
+          Nothing -> True
+          -- There is an intersection, we check that it happen "AFTER" the light.
+          Just (tIntersect, _) -> tIntersect ** 2 > lightDistance2
+
+        visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
+
+    tonemap (visibility .*. lightEmission .*. (coef .*. albedo))
+
+epsilon :: Float
+epsilon = 0.01
 
 -- | Convert a light measure to a pixel value
 tonemap :: V3 'Color -> PixelRGBA8
