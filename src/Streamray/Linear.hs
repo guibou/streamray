@@ -6,24 +6,22 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 
-{-
-
-   Linear algebra for computer graphics.
-
-   This module wraps 'Linear.V3' and introduces a few newtypes, based around
-   phantom types and the 'V3' type, in order to represents 'Position',
-   'Direction Normalized' (i.e. normal), 'Direction NotNormalized' and 'Color.
-
-   The patterns 'P', 'N', 'D', and 'C' are safe way in order to build such
-   types.
-
-   Combinations functions, such as '(.-.)', '(.+.)', '(.*.)' only allows
-   operations which are meaningful in this context. For example, adding a
-   'Position' and a 'Color' is not allowed, but subtracting 'Position' results
-   in not normalized 'Direction'.
-
-   In also reexport functions from 'Linear' with the safe types.
--}
+-- |
+--   Linear algebra for computer graphics.
+--
+--   This module wraps 'Linear.V3' and introduces a few newtypes, based around
+--   phantom types and the 'V3' type, in order to represents 'Position',
+--   'Direction Normalized' (i.e. normal), 'Direction NotNormalized' and 'Color.
+--
+--   The patterns 'P', 'N', 'D', and 'C' are safe way in order to build such
+--   types.
+--
+--   Combinations functions, such as '(.-.)', '(.+.)', '(.*.)' only allows
+--   operations which are meaningful in this context. For example, adding a
+--   'Position' and a 'Color' is not allowed, but subtracting 'Position' results
+--   in not normalized 'Direction'.
+--
+--   In also reexport functions from Linear with the safe types.
 module Streamray.Linear
   ( -- * Types
     V3,
@@ -35,9 +33,10 @@ module Streamray.Linear
     Mul (..),
     Sub (..),
 
-    -- * Distance
+    -- * Directions
     normalize,
     dot,
+    (-->),
 
     -- * Patterns
     pattern P,
@@ -94,8 +93,7 @@ instance Add (V3 a) (V3 b) where
   type AddResult (V3 a) (V3 b) = V3 (AddResultV3 a b)
   (.+.) = unsafeLiftLinear (+)
 
--- * Subtract two items.
-
+-- | Subtract two items.
 class Sub a b where
   type SubResult a b
   (.-.) :: a -> b -> SubResult a b
@@ -124,8 +122,6 @@ type family MulResultV3 a b where
   MulResultV3 'Color 'Color = 'Color
 
 -- | Instance for V3. It represents 'Color' mix.
--- See 'MulResultV3' for the list of
--- all possible cases.
 instance Mul (V3 a) (V3 b) where
   type MulResult (V3 a) (V3 b) = V3 (MulResultV3 a b)
   (.*.) = unsafeLiftLinear (*)
@@ -178,3 +174,7 @@ dot (V3 x) (V3 y) = Linear.dot x y
 -- | Normalize a direction
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
 normalize (V3 v) = V3 (Linear.normalize v)
+
+-- | Represents the direction between two points
+(-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)
+x --> y = y .-. x
