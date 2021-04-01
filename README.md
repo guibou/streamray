@@ -13,6 +13,8 @@ noise on the surface because the point on the surface may sometime be under the
 surfaces. We addressed this issue by slightly moving the ray origin toward the
 light source, in order to exit the current object.
 
+![](results/stream3.png)
+
 Stream #2
 =========
 
