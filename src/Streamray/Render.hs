@@ -12,6 +12,8 @@
 module Streamray.Render where
 
 import Codec.Picture
+import Control.Monad (replicateM)
+import Data.Foldable
 import Data.Maybe
 import Streamray.Linear
 import Streamray.Material
@@ -90,8 +92,8 @@ epsilon :: Float
 epsilon = 0.01
 
 -- | Convert a light measure to a pixel value
-tonemap :: V3 'Color -> PixelRGBA8
-tonemap v = PixelRGBA8 x y z 255
+tonemap :: Float -> V3 'Color -> PixelRGBA8
+tonemap alpha v = PixelRGBA8 x y z (truncate . max 0 . min 255 . (*255) $ alpha)
   where
     -- truncate converts to Word8
     -- min/max clamps to the acceptable range
@@ -109,22 +111,32 @@ ftonemap = truncate @Float @Pixel8 . max 0 . min 255 . (* 255) . (** (1 / 2.2))
 -- This function is called for each pixel
 raytrace :: Int -> Int -> IO PixelRGBA8
 raytrace (fromIntegral -> x) (fromIntegral -> y) = do
-  r <- radiance 0 ray
-  case r of
-    Nothing -> pure $ PixelRGBA8 0 0 0 0
-    Just c -> pure $ tonemap c
+  let nSamples = 10
+  rs <- replicateM nSamples runRay
+
+  -- TODO: restore alpha
+  let contribs = catMaybes rs
+  let nAlphaContribs = nSamples - length contribs
+  let contrib = foldl' (.+.) (C 0 0 0) contribs
+
+  pure $ tonemap (1.0 - fromIntegral nAlphaContribs / fromIntegral nSamples) ((1 / fromIntegral nSamples :: Float) .*. contrib) 
   where
-    -- Generate a ray in the XY plane and pointing in the Z direction
-    coefOpening = 1.001
+    runRay = do
+      dx <- randomIO @Float
+      dy <- randomIO @Float
+      let -- Generate a ray in the XY plane and pointing in the Z direction
+          coefOpening = 1.001
 
-    n = P x y 0
+          -- TODO. Discuss about proper filtering
+          n = P (x + dx) (y + dy) 0
 
-    -- n' is on the plane [-250:250]
-    n'@(P x' y' 0) = n .-. D 250 250 0
-    f = P (coefOpening * x') (coefOpening * y') 1
+          -- n' is on the plane [-250:250]
+          n'@(P x' y' 0) = n .-. D 250 250 0
+          f = P (coefOpening * x') (coefOpening * y') 1
 
-    d = normalize (n' --> f)
-    ray = Ray n d
+          d = normalize (n' --> f)
+          ray = Ray n d
+      radiance 0 ray
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: FilePath -> IO ()
