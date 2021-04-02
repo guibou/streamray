@@ -36,6 +36,7 @@ module Streamray.Linear
     -- * Directions
     normalize,
     dot,
+    flipDirection,
     (-->),
 
     -- * Patterns
@@ -174,6 +175,10 @@ dot (V3 x) (V3 y) = Linear.dot x y
 -- | Normalize a direction
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
 normalize (V3 v) = V3 (Linear.normalize v)
+
+-- | Flip a direction
+flipDirection :: V3 ('Direction k) -> V3 ('Direction k)
+flipDirection (V3 v) = V3 (-v)
 
 -- | Represents the direction between two points
 (-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)

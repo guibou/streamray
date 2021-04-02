@@ -29,6 +29,7 @@ reflect ::
   -- | Outgoing reflected direction
   V3 ('Direction 'Normalized)
 reflect n wi = normalize ((-2 * dot n wi) .*. n .+. wi)
+
 -- TODO: normalize is useless
 --       /
 --      /
@@ -60,12 +61,13 @@ refract ::
   V3 ('Direction 'Normalized) ->
   -- | Incoming direction (facing surface)
   V3 ('Direction 'Normalized) ->
-  -- | If we are inside or outside
-  Bool ->
   -- | Outgoing reflected direction as well as the transmission fresnel coef.
   Maybe (Float, V3 ('Direction 'Normalized))
-refract ior' nl direction outside =
-  let -- Here we compute the refraction angle
+refract ior' normal direction =
+  let outside = dot direction normal < 0
+      nl = if outside then normal else flipDirection normal
+
+      -- Here we compute the refraction angle
       -- Do to fresnel laws, total internal reflection may happen, hence no refraction
       -- n_1 sin t_1 = n_2 sin t_2
       -- ior = n1 / n2

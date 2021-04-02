@@ -39,8 +39,7 @@ radiance depth ray = case rayIntersectObjets ray scene of
     Just . (albedo .*.) <$> case behavior of
       Glass ior -> do
         -- flip the normal so that it is pointing outside.
-        let transmittedDirectionMaybe = refract ior (if outside then normal else normalize (((-1) :: Float) .*. normal)) (direction ray) outside
-            outside = dot (direction ray) normal < 0
+        let transmittedDirectionMaybe = refract ior normal (direction ray)
         case transmittedDirectionMaybe of
           -- Total internal reflection, just mirror.
           Nothing -> mirrorContribution
