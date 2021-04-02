@@ -4,6 +4,21 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #5
+=========
+
+- We introduced pixel filtering (with a box filter) in order to get anti aliasing.
+- Indirect lighting for diffuses surfaces using cosinus weighted importance sampling.
+- Russian rulette for earlier termination of the render.
+
+The following images are computed with different maximum depth.
+
+![](results/stream5/1.png)
+![](results/stream5/2.png)
+![](results/stream5/3.png)
+![](results/stream5/4.png)
+![](results/stream5/5.png)
+
 Stream #4
 =========
 

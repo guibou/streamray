@@ -22,7 +22,8 @@ sphereRadius = 5000
 -- 'sphereRadius' in order to flatten the walls. 
 scene :: [Object]
 scene =
-  [ Object
+  [ 
+    Object
       (Material (C 1 1 0) Diffuse)
       (Sphere (P (sphereRadius + 500) 250 0) sphereRadius), -- Right
     Object

@@ -44,7 +44,11 @@ module Streamray.Linear
     pattern N,
     pattern D,
     pattern C,
-  )
+
+    -- Unsafe API
+  unsafeToV3,
+  unsafeNormalized
+  ,unsafeV3)
 where
 
 import qualified Linear
@@ -176,6 +180,10 @@ dot (V3 x) (V3 y) = Linear.dot x y
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
 normalize (V3 v) = V3 (Linear.normalize v)
 
+-- | Assume that the vector is normalized
+unsafeNormalized :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
+unsafeNormalized (V3 v) = V3 v
+
 -- | Flip a direction
 flipDirection :: V3 ('Direction k) -> V3 ('Direction k)
 flipDirection (V3 v) = V3 (-v)
@@ -183,3 +191,9 @@ flipDirection (V3 v) = V3 (-v)
 -- | Represents the direction between two points
 (-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)
 x --> y = y .-. x
+
+unsafeToV3 :: V3 k -> Linear.V3 Float
+unsafeToV3 (V3 v) = v
+
+unsafeV3 :: Linear.V3 Float -> V3 k
+unsafeV3 v = V3 v
