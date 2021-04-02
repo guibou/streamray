@@ -4,6 +4,22 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #4
+=========
+
+We added `reflect` and `refract` function in order to handle mirror and glass
+material.
+
+Glass are not trivial because they involves the combination of both behaviors.
+During the stream we first decided to trace both the reflected and refracted
+rays, which was super slow.
+
+Instead we used sampling by randomly picking one or the other and weighting it
+with the probability density. We then decided to use multiple importance
+sampling in order to reduce the noise.
+
+![](results/stream4.png)
+
 Stream #3
 =========
 

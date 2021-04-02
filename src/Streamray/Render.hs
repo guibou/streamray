@@ -12,46 +12,79 @@
 module Streamray.Render where
 
 import Codec.Picture
+import Data.Maybe
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
+import System.Random
 
 -- | Returns the pixel color associated with a 'Ray'
-radiance :: Ray -> PixelRGBA8
-radiance ray = case rayIntersectObjets ray scene of
-  Nothing -> PixelRGBA8 0 0 0 255
+radiance :: Int -> Ray -> IO (Maybe (V3 'Color))
+radiance 5 _ = pure $ Just (C 0 0 0)
+radiance depth ray = case rayIntersectObjets ray scene of
+  Nothing -> pure Nothing
   Just (t, Object (Material albedo behavior) sphere) -> do
     let x = origin ray .+. t .*. direction ray
-        directionToLight = x --> lightPosition
         normal = normalize (center sphere --> x)
 
-        -- TODO: handle surface factors
-        directionToLightNormalized = normalize directionToLight
-        coef = max 0 (dot normal directionToLightNormalized / lightDistance2)
+        -- Mirror contribution may be used in multiple material path (Mirror
+        -- and Glass), so we factorize the code here.
+        mirrorContribution = do
+          let reflectedDirection = reflect normal (direction ray)
+              reflectedRay = Ray (x .+. epsilon .*. reflectedDirection) reflectedDirection
+          contrib <- radiance (depth + 1) reflectedRay
+          pure $ fromMaybe (C 0 0 0) contrib
 
-        lightDistance2 = dot directionToLight directionToLight
+    Just . (albedo .*.) <$> case behavior of
+      Glass ior -> do
+        -- flip the normal so that it is pointing outside.
+        let transmittedDirectionMaybe = refract ior (if outside then normal else normalize (((-1) :: Float) .*. normal)) (direction ray) outside
+            outside = dot (direction ray) normal < 0
+        case transmittedDirectionMaybe of
+          -- Total internal reflection, just mirror.
+          Nothing -> mirrorContribution
+          -- Glass contribution, with refraction and transmission
+          Just (coef, transmittedDirection) -> do
+            (r :: Float) <- randomIO
 
-        -- Trace a ray toward the light source and check for intersection
-        canSeeLightSource = case rayIntersectObjets
-          ( Ray
-              -- The origin of the ray is biased toward the light to avoid self
-              -- shadows if the point is slightly under the surface due to
-              -- floating point approximations.
-              ( x
-                  .+. epsilon .*. directionToLightNormalized
+            -- Pick a random choice, with probability (PDF) = coef
+            if r < coef
+              then do
+                -- This choice was picked with PDF = coef, and is weighted by coef (the transmission factor). Both cancels
+                let transmittedRay = Ray (x .+. (epsilon * 3) .*. transmittedDirection) transmittedDirection
+                fromMaybe (C 0 0 0) <$> radiance (depth + 1) transmittedRay
+              else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
+                mirrorContribution
+      Mirror -> mirrorContribution
+      Diffuse -> do
+        let -- TODO: handle surface factors
+            directionToLight = x --> lightPosition
+            directionToLightNormalized = normalize directionToLight
+            coef = max 0 (dot normal directionToLightNormalized / lightDistance2)
+
+            lightDistance2 = dot directionToLight directionToLight
+
+            -- Trace a ray toward the light source and check for intersection
+            canSeeLightSource = case rayIntersectObjets
+              ( Ray
+                  -- The origin of the ray is biased toward the light to avoid self
+                  -- shadows if the point is slightly under the surface due to
+                  -- floating point approximations.
+                  ( x
+                      .+. epsilon .*. directionToLightNormalized
+                  )
+                  directionToLightNormalized
               )
-              directionToLightNormalized
-          )
-          scene of
-          -- No intersection, we see the light
-          Nothing -> True
-          -- There is an intersection, we check that it happen "AFTER" the light.
-          Just (tIntersect, _) -> tIntersect ** 2 > lightDistance2
+              scene of
+              -- No intersection, we see the light
+              Nothing -> True
+              -- There is an intersection, we check that it happen "AFTER" the light.
+              Just (tIntersect, _) -> tIntersect ** 2 > lightDistance2
 
-        visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
+            visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
-    tonemap (visibility .*. lightEmission .*. (coef .*. albedo))
+        pure $ visibility .*. lightEmission .*. coef
 
 -- | Changes the ray offset used to escape surface
 epsilon :: Float
@@ -75,8 +108,12 @@ ftonemap = truncate @Float @Pixel8 . max 0 . min 255 . (* 255) . (** (1 / 2.2))
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
-raytrace :: Int -> Int -> PixelRGBA8
-raytrace (fromIntegral -> x) (fromIntegral -> y) = radiance ray
+raytrace :: Int -> Int -> IO PixelRGBA8
+raytrace (fromIntegral -> x) (fromIntegral -> y) = do
+  r <- radiance 0 ray
+  case r of
+    Nothing -> pure $ PixelRGBA8 0 0 0 0
+    Just c -> pure $ tonemap c
   where
     -- Generate a ray in the XY plane and pointing in the Z direction
     coefOpening = 1.001
@@ -92,4 +129,4 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) = radiance ray
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: FilePath -> IO ()
-raytraceImage path = writePng path $ generateImage raytrace 500 500
+raytraceImage path = writePng path =<< withImage 500 500 raytrace

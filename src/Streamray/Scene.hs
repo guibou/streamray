@@ -39,12 +39,12 @@ scene =
       (Sphere (P 250 250 (sphereRadius + 500)) sphereRadius), -- Back
       -- Small sphere 1
     Object
-      (Material (C 1 1 1) Diffuse)
-      (Sphere (P 150 350 350) 80),
+      (Material (C 1 1 1) Mirror)
+      (Sphere (P 150 350 250) 100),
     -- Small sphere 1
     Object
-      (Material (C 1 1 1) Diffuse)
-      (Sphere (P 350 350 350) 80)
+      (Material (C 1 1 1) (Glass 2.4))
+      (Sphere (P 350 350 250) 100)
   ]
 
 
