@@ -8,7 +8,6 @@ module Streamray.Sampling
   )
 where
 
-import qualified Linear
 import Streamray.Linear
 
 -- | Sampling proportional to cosinus weighted on hemisphere
@@ -37,22 +36,22 @@ sampleCosinus u v =
 -- | Basis rotation, based on http://jcgt.org/published/0006/01/01/ Building an Orthonormal Basis, Revisited
 makeBase ::
   -- | Normal (Z of the basis)
-  Linear.V3 Float ->
+  V3 t ->
   -- | (baseX, baseY)
-  (Linear.V3 Float, Linear.V3 Float)
-makeBase (Linear.V3 x y z) = (baseX, baseY)
+  (V3 t, V3 t)
+makeBase (UnsafeV3 x y z) = (baseX, baseY)
   where
     sign = signum z
     a = -1.0 / (sign + z)
     b = x * y * a
 
-    baseX = Linear.V3 (1 + sign * x * x * a) (sign * b) (- sign * x)
-    baseY = Linear.V3 b (sign + y * y * a) (- y)
+    baseX = UnsafeV3 (1 + sign * x * x * a) (sign * b) (- sign * x)
+    baseY = UnsafeV3 b (sign + y * y * a) (- y)
 
 -- | Rotate a vector around a normal
 rotateVector :: V3 ('Direction 'Normalized) -- ^ Normal
   -> V3 ('Direction 'Normalized) -- ^ Vector
   -> V3 ('Direction 'Normalized)
-rotateVector (unsafeToV3 -> normal) (unsafeToV3 -> Linear.V3 x y z) =
+rotateVector normal (UnsafeV3 x y z) =
   let (baseX, baseY) = makeBase normal
-   in unsafeV3 (x Linear.*^ baseX + y Linear.*^ baseY + z Linear.*^ normal)
+   in unsafeNormalized (x .*. baseX .+. y .*. baseY .+. z .*. normal)

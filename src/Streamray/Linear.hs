@@ -24,7 +24,7 @@
 --   In also reexport functions from Linear with the safe types.
 module Streamray.Linear
   ( -- * Types
-    V3,
+    V3 (..),
     Space (..),
     DirectionKind (..),
 
@@ -44,14 +44,12 @@ module Streamray.Linear
     pattern N,
     pattern D,
     pattern C,
-
     -- Unsafe API
-  unsafeToV3,
-  unsafeNormalized
-  ,unsafeV3)
+    unsafeNormalized,
+  )
 where
 
-import qualified Linear
+import Data.Coerce
 
 -- | Represents whether a direction is normalized or not
 data DirectionKind = Normalized | NotNormalized
@@ -66,7 +64,7 @@ data Space
     Color
 
 -- | This is a point in 3D associated with a space
-newtype V3 (k :: Space) = V3 (Linear.V3 Float)
+data V3 (k :: Space) = UnsafeV3 {-# UNPACK #-} !Float {-# UNPACK #-} !Float {-# UNPACK #-} !Float
   deriving (Show)
 
 -- * Add
@@ -88,15 +86,18 @@ type family AddResultV3 (a :: Space) (b :: Space) where
 -- Composition of direction
   AddResultV3 ('Direction k) ('Direction k') = 'Direction 'NotNormalized
 
+{-# INLINE applyFunctionOnPairOfV3Arguments #-}
+
 -- | This is used to apply a function inside the V3 newtype
-unsafeLiftLinear :: (Linear.V3 Float -> Linear.V3 Float -> Linear.V3 Float) -> V3 k1 -> V3 k2 -> V3 k3
-unsafeLiftLinear f (V3 x) (V3 y) = V3 (f x y)
+applyFunctionOnPairOfV3Arguments :: (Float -> Float -> Float) -> V3 k1 -> V3 k2 -> V3 k3
+applyFunctionOnPairOfV3Arguments f (UnsafeV3 x y z) (UnsafeV3 x' y' z') = UnsafeV3 (f x x') (f y y') (f z z')
 
 -- | Instance for V3. It represents 'Color' addition, 'Position' translations
 -- and 'Direction' compositions.
 instance Add (V3 a) (V3 b) where
   type AddResult (V3 a) (V3 b) = V3 (AddResultV3 a b)
-  (.+.) = unsafeLiftLinear (+)
+  {-# INLINE (.+.) #-}
+  (.+.) = applyFunctionOnPairOfV3Arguments (+)
 
 -- | Subtract two items.
 class Sub a b where
@@ -114,7 +115,8 @@ type family SubResultV3 a b where
 -- translation and 'Direction' compositions.
 instance Sub (V3 a) (V3 b) where
   type SubResult (V3 a) (V3 b) = V3 (SubResultV3 a b)
-  (.-.) = unsafeLiftLinear (-)
+  {-# INLINE (.-.) #-}
+  (.-.) = applyFunctionOnPairOfV3Arguments (-)
 
 -- | Multiply two types
 class Mul a b where
@@ -129,13 +131,15 @@ type family MulResultV3 a b where
 -- | Instance for V3. It represents 'Color' mix.
 instance Mul (V3 a) (V3 b) where
   type MulResult (V3 a) (V3 b) = V3 (MulResultV3 a b)
-  (.*.) = unsafeLiftLinear (*)
+  {-# INLINE (.*.) #-}
+  (.*.) = applyFunctionOnPairOfV3Arguments (*)
 
 -- | Scale of a 'V3' with a scalar. It scales 'Color'.
 -- and 'Direction'.
 instance Mul (V3 k) Float where
   type MulResult (V3 k) Float = V3 (MulResultScalarV3 k)
-  V3 v .*. f = V3 (v Linear.^* f)
+  {-# INLINE (.*.) #-}
+  UnsafeV3 x y z .*. f = UnsafeV3 (x * f) (y * f) (z * f)
 
 type family MulResultScalarV3 a where
   MulResultScalarV3 ('Direction k) = 'Direction 'NotNormalized
@@ -144,24 +148,25 @@ type family MulResultScalarV3 a where
 -- | Scale of a 'V3' with a scalar. It scales 'Color' and 'Direction'.
 instance Mul Float (V3 k) where
   type MulResult Float (V3 k) = V3 (MulResultScalarV3 k)
-  f .*. V3 v = V3 (f Linear.*^ v)
+  {-# INLINE (.*.) #-}
+  f .*. UnsafeV3 x y z = UnsafeV3 (f * x) (f * y) (f * z)
 
 -- * Ctor and aliases
 
 -- | Position
 pattern P :: Float -> Float -> Float -> V3 'Position
-pattern P x y z = V3 (Linear.V3 x y z)
+pattern P x y z = UnsafeV3 x y z
 
 -- | Direction
 pattern D :: Float -> Float -> Float -> V3 ('Direction 'NotNormalized)
-pattern D x y z = V3 (Linear.V3 x y z)
+pattern D x y z = UnsafeV3 x y z
 
 -- | Normalized direction (this pattern will normalize the value for you)
 pattern N :: Float -> Float -> Float -> V3 ('Direction 'Normalized)
 pattern N x y z <-
-  V3 (Linear.V3 x y z)
+  UnsafeV3 x y z
   where
-    N x y z = V3 (Linear.V3 x' y' z')
+    N x y z = UnsafeV3 x' y' z'
       where
         n = sqrt (x * x + y * y + z * z)
         x' = x / n
@@ -170,30 +175,34 @@ pattern N x y z <-
 
 -- | Color
 pattern C :: Float -> Float -> Float -> V3 'Color
-pattern C x y z = V3 (Linear.V3 x y z)
+pattern C x y z = UnsafeV3 x y z
+
+{-# INLINE dot #-}
 
 -- | Scalar product
 dot :: V3 ('Direction k) -> V3 ('Direction k') -> Float
-dot (V3 x) (V3 y) = Linear.dot x y
+dot (UnsafeV3 x y z) (UnsafeV3 x' y' z') = x * x' + y * y' + z * z'
+
+{-# INLINE normalize #-}
 
 -- | Normalize a direction
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
-normalize (V3 v) = V3 (Linear.normalize v)
+normalize (UnsafeV3 x y z) = N x y z
+
+{-# INLINE unsafeNormalized #-}
 
 -- | Assume that the vector is normalized
 unsafeNormalized :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
-unsafeNormalized (V3 v) = V3 v
+unsafeNormalized = coerce
+
+{-# INLINE flipDirection #-}
 
 -- | Flip a direction
 flipDirection :: V3 ('Direction k) -> V3 ('Direction k)
-flipDirection (V3 v) = V3 (-v)
+flipDirection (UnsafeV3 x y z) = UnsafeV3 (- x) (- y) (- z)
+
+{-# INLINE (-->) #-}
 
 -- | Represents the direction between two points
 (-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)
 x --> y = y .-. x
-
-unsafeToV3 :: V3 k -> Linear.V3 Float
-unsafeToV3 (V3 v) = v
-
-unsafeV3 :: Linear.V3 Float -> V3 k
-unsafeV3 v = V3 v
