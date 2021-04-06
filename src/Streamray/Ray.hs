@@ -94,15 +94,23 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       -- >>> https://en.wikipedia.org/wiki/Quadratic_equation#Discriminant
       -- t ^ 2 * a + t * b + c = 0
 
-      a = dot direction direction
-      b = - 2 * dot direction oc
+      -- a = dot direction direction
+      -- We know by construction that the ray direction is normalized, so a = 1
+      
+      -- b = - 2 * dot direction oc
+      -- We simplify the next expressions by removing the division by 2
+      -- We can also remove the negation of b
+      b = dot direction oc
       c = dot oc oc - r2
 
-      delta = b * b - 4 * a * c
+      -- delta = b * b - 4 * a * c
+      -- 4 and a are removed based on previous optimisations
+      delta = b * b - c
 
       -- There is two solutions, t0 and t1, if delta >= 0
-      t0 = (- b - sqrt delta) / (2 * a)
-      t1 = (- b + sqrt delta) / (2 * a)
+      sqrtDelta = sqrt delta
+      t0 = b - sqrtDelta
+      t1 = b + sqrtDelta
    in if
           | delta < 0 -> Nothing -- No solution, the ray missed the sphere
           | t0 >= 0 -> Just t0 -- t0 solution is the smallest (by construction), and is positive. The ray hit the front of the sphere.
