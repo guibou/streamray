@@ -92,7 +92,7 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
               -- No intersection, we see the light
               Nothing -> True
               -- There is an intersection, we check that it happen "AFTER" the light.
-              Just (Intersection _ tIntersect) -> tIntersect ** 2 > lightDistance2
+              Just (Intersection _ tIntersect) -> tIntersect * tIntersect > lightDistance2
 
             visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
