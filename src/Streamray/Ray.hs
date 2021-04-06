@@ -32,21 +32,20 @@ data Sphere = Sphere
   }
   deriving (Show)
 
+data Intersection = Intersection Object {-# UNPACK #-} !Float
+
 -- | Returns the first intersection (if any) of a ray with a bunch of objets
-rayIntersectObjets :: Ray -> [Object] -> Maybe (Float, Object)
-rayIntersectObjets ray objects = case intersections of
-  [] -> Nothing
-  l -> Just $ minimumBy (comparing fst) l
+rayIntersectObjets :: Ray -> [Object] -> Maybe Intersection
+rayIntersectObjets ray = foldl' f Nothing
   where
-    intersectionsMaybe = map (rayIntersectObject ray) objects
-    intersections = catMaybes intersectionsMaybe
+    f Nothing obj@(Object _ sphere) = Intersection obj <$> rayIntersectSphere ray sphere
+    f res@(Just (Intersection _ t)) obj'@(Object _ sphere) = case rayIntersectSphere ray sphere of
+      Nothing -> res
+      Just t'
+        | t' < t -> Just (Intersection obj' t')
+        | otherwise -> res
 
--- | Intersection between an object and ray
-rayIntersectObject :: Ray -> Object -> Maybe (Float, Object)
-rayIntersectObject ray o@(Object _ sphere) = case rayIntersectSphere ray sphere of
-  Nothing -> Nothing
-  Just t -> Just (t, o)
-
+{-# INLINE rayIntersectSphere #-}
 -- | Intersection between an object and sphere
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
@@ -96,7 +95,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
 
       -- a = dot direction direction
       -- We know by construction that the ray direction is normalized, so a = 1
-      
+
       -- b = - 2 * dot direction oc
       -- We simplify the next expressions by removing the division by 2
       -- We can also remove the negation of b

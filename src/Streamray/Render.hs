@@ -37,7 +37,7 @@ radiance depth ray = do
 subRadiance :: Int -> Ray -> IO (Maybe (V3 'Color))
 subRadiance depth ray = case rayIntersectObjets ray scene of
   Nothing -> pure Nothing
-  Just (t, Object (Material albedo behavior) sphere) -> do
+  Just (Intersection (Object (Material albedo behavior) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray
         normal = normalize (center sphere --> x)
 
@@ -92,7 +92,7 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
               -- No intersection, we see the light
               Nothing -> True
               -- There is an intersection, we check that it happen "AFTER" the light.
-              Just (tIntersect, _) -> tIntersect ** 2 > lightDistance2
+              Just (Intersection _ tIntersect) -> tIntersect ** 2 > lightDistance2
 
             visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
