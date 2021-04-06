@@ -22,6 +22,39 @@ import Streamray.Sampling
 import Streamray.Scene
 import System.Random
 
+-- | Compute the direct lighting for a diffuse material
+directLighting :: V3 'Position -- ^ Position of the lighting
+  -> V3 ('Direction k) -- ^ Surface normal (object must be on the positive side of the normal)
+  -> Light -- ^ Light
+  -> V3 'Color
+directLighting x normal light = do
+  let directionToLight = x --> position light
+      directionToLightNormalized = normalize directionToLight
+
+      -- Diffuse shading
+      coef = max 0 (dot normal directionToLightNormalized / (pi * lightDistance2))
+
+      lightDistance2 = dot directionToLight directionToLight
+
+      -- Trace a ray toward the light source and check for intersection
+      canSeeLightSource =
+        testRayVisibility
+          ( Ray
+              -- The origin of the ray is biased toward the light to avoid self
+              -- shadows if the point is slightly under the surface due to
+              -- floating point approximations.
+              ( x
+                  .+. epsilon .*. directionToLightNormalized
+              )
+              directionToLightNormalized
+          )
+          (objects scene)
+          lightDistance2
+
+      visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
+
+  visibility .*. emission light .*. coef
+
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: Int -> Ray -> IO (Maybe (V3 'Color))
 radiance 5 _ = pure $ Just (C 0 0 0)
@@ -70,29 +103,10 @@ subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
                 mirrorContribution
       Mirror -> mirrorContribution
       Diffuse -> do
-        let -- TODO: handle surface factors
-            directionToLight = x --> position (lights scene !! 0)
-            directionToLightNormalized = normalize directionToLight
-            coef = max 0 (dot normal directionToLightNormalized / (pi * lightDistance2))
-
-            lightDistance2 = dot directionToLight directionToLight
-
-            -- Trace a ray toward the light source and check for intersection
-            canSeeLightSource = testRayVisibility
-              ( Ray
-                  -- The origin of the ray is biased toward the light to avoid self
-                  -- shadows if the point is slightly under the surface due to
-                  -- floating point approximations.
-                  ( x
-                      .+. epsilon .*. directionToLightNormalized
-                  )
-                  directionToLightNormalized
-              )
-              (objects scene) lightDistance2
-
-            visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
-
-            directLightContrib = visibility .*. emission (lights scene !! 0) .*. coef
+        -- Sample uniformly one light
+        -- TODO: we would like to do that by importance
+        lu <- randomRIO (0, length (lights scene) - 1)
+        let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLighting x normal (lights scene !! lu)
 
         -- Indirect lighting
         u <- randomIO @Float

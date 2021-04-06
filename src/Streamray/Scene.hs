@@ -19,10 +19,6 @@ data Scene = Scene
   }
   deriving (Show)
 
--- | A light
-light :: Light
-light = Light (P 250 250 250) (C 30000 30000 30000)
-
 -- | Drives the flatness of the walls
 sphereRadius :: Float
 sphereRadius = 5000
@@ -57,4 +53,10 @@ objects' =
   ]
 
 scene :: Scene
-scene = Scene objects' [light]
+scene =
+  Scene
+    objects'
+    [ Light (P 250 250 250) (C 30000 30000 30000),
+      Light (P 0 250 250) (C 30000 10000 10000),
+      Light (P 500 250 250) (C 00000 10000 30000)
+    ]
