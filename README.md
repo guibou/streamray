@@ -4,6 +4,28 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #6
+=========
+
+We mostly did optimisation which cut the rendering time from 27s to 4s. Using
+profiling we where able to locate and fix the following performances probleme:
+
+- The `random` library is slow. We upgraded to random 1.2.0 for a huge
+  performance boost.
+- Using `linear` `V3` leads to packed data (because it is polymorphic). We
+  replaced it by our own implementation which correctly unpack.
+- A few `INLINE` improved the allocations.
+- Rewriting `rayIntersectObjects` from a series of `map` and `maximum` to a
+  `foldl'` gives a huge performance boost.
+
+We also refactored the direct lighting and introduced a `Scene` and `Light`
+datastructure, in order to handle multiples lights. Light selection is done
+randomly, a light is picked uniformly. This leads to introduced noise.
+
+The following image is generated with 200 samples per pixel in ~150s on my laptop
+
+![](results/stream6/200spp_150s_uniform1light.png)
+
 Stream #5
 =========
 

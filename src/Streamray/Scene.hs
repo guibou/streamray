@@ -13,6 +13,7 @@ data Light = Light
   }
   deriving (Show)
 
+-- TODO: it should be vector instead of list
 data Scene = Scene
   { objects :: [Object],
     lights :: [Light]
@@ -57,6 +58,6 @@ scene =
   Scene
     objects'
     [ Light (P 250 250 250) (C 30000 30000 30000),
-      Light (P 0 250 250) (C 30000 10000 10000),
-      Light (P 500 250 250) (C 00000 10000 30000)
+      Light (P 50 250 250) (C 30000 10000 10000),
+      Light (P 450 250 250) (C 00000 10000 30000)
     ]
