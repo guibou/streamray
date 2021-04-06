@@ -73,7 +73,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       -- >>> introduces some simplifications
 
       oc = origin --> center
-      r2 = radius ** 2
+      r2 = radius * radius
       -- length(t * D - OC) ^ 2 = r2
       --
       -- >>> let dot'(A) = dot(A, A) = length(A)^2
@@ -98,7 +98,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       b = - 2 * dot direction oc
       c = dot oc oc - r2
 
-      delta = b ** 2 - 4 * a * c
+      delta = b * b - 4 * a * c
 
       -- There is two solutions, t0 and t1, if delta >= 0
       t0 = (- b - sqrt delta) / (2 * a)
