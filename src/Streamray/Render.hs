@@ -78,7 +78,7 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
             lightDistance2 = dot directionToLight directionToLight
 
             -- Trace a ray toward the light source and check for intersection
-            canSeeLightSource = case rayIntersectObjets
+            canSeeLightSource = testRayVisibility
               ( Ray
                   -- The origin of the ray is biased toward the light to avoid self
                   -- shadows if the point is slightly under the surface due to
@@ -88,11 +88,7 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
                   )
                   directionToLightNormalized
               )
-              scene of
-              -- No intersection, we see the light
-              Nothing -> True
-              -- There is an intersection, we check that it happen "AFTER" the light.
-              Just (Intersection _ tIntersect) -> tIntersect * tIntersect > lightDistance2
+              scene lightDistance2
 
             visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 

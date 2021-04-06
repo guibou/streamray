@@ -12,8 +12,6 @@
 module Streamray.Ray where
 
 import Data.List
-import Data.Maybe
-import Data.Ord (comparing)
 import Streamray.Linear
 import Streamray.Material
 
@@ -34,6 +32,17 @@ data Sphere = Sphere
 
 data Intersection = Intersection Object {-# UNPACK #-} !Float
 
+-- | Test visibility with early exit
+testRayVisibility :: Ray -> [Object] -> Float -> Bool
+testRayVisibility ray objects distance2 = go objects
+  where
+    go [] = True
+    go (Object _ sphere : xs) = case rayIntersectSphere ray sphere of
+      Nothing -> go xs
+      Just t
+        | t * t < distance2 -> False
+        | otherwise -> go xs
+
 -- | Returns the first intersection (if any) of a ray with a bunch of objets
 rayIntersectObjets :: Ray -> [Object] -> Maybe Intersection
 rayIntersectObjets ray = foldl' f Nothing
@@ -46,6 +55,7 @@ rayIntersectObjets ray = foldl' f Nothing
         | otherwise -> res
 
 {-# INLINE rayIntersectSphere #-}
+
 -- | Intersection between an object and sphere
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
