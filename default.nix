@@ -36,12 +36,13 @@
     };
   };
 
-  app = (haskellPackage.callCabal2nix "streamray" sources {
-
+  app = ((haskellPackage.callCabal2nix "streamray" sources {
   }).overrideAttrs (oldAttrs: {
     buildInputs = oldAttrs.buildInputs;
     passthru = oldAttrs.passthru // { inherit shell shell_hls; };
-  });
+  })).override {
+      random = haskellPackage.random_1_2_0;
+  };
 
   formatting-fix = pkgs.mkShell {
     nativeBuildInputs = [ pkgs.haskellPackages.ormolu ];
