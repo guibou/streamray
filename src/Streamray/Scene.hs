@@ -1,29 +1,37 @@
 {-# LANGUAGE DataKinds #-}
+
 -- | Represents a static scene, a cornel box with one light
 module Streamray.Scene where
 
 import Streamray.Linear
-import Streamray.Ray
 import Streamray.Material
+import Streamray.Ray
+
+data Light = Light
+  { position :: V3 'Position,
+    emission :: V3 'Color
+  }
+  deriving (Show)
+
+data Scene = Scene
+  { objects :: [Object],
+    lights :: [Light]
+  }
+  deriving (Show)
 
 -- | A light
-lightPosition :: V3 'Position
-lightPosition = P 250 250 250
-
--- | Which emits
-lightEmission :: V3 'Color
-lightEmission = C 30000 30000 30000
+light :: Light
+light = Light (P 250 250 250) (C 30000 30000 30000)
 
 -- | Drives the flatness of the walls
 sphereRadius :: Float
 sphereRadius = 5000
 
 -- | Initial scene. It is a box built with (big) spheres for the walls. Change
--- 'sphereRadius' in order to flatten the walls. 
-scene :: [Object]
-scene =
-  [ 
-    Object
+-- 'sphereRadius' in order to flatten the walls.
+objects' :: [Object]
+objects' =
+  [ Object
       (Material (C 1 1 0) Diffuse)
       (Sphere (P (sphereRadius + 500) 250 0) sphereRadius), -- Right
     Object
@@ -48,4 +56,5 @@ scene =
       (Sphere (P 350 350 250) 100)
   ]
 
-
+scene :: Scene
+scene = Scene objects' [light]

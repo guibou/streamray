@@ -35,7 +35,7 @@ radiance depth ray = do
     else pure $ Just (C 0 0 0)
 
 subRadiance :: Int -> Ray -> IO (Maybe (V3 'Color))
-subRadiance depth ray = case rayIntersectObjets ray scene of
+subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
   Nothing -> pure Nothing
   Just (Intersection (Object (Material albedo behavior) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray
@@ -71,7 +71,7 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
       Mirror -> mirrorContribution
       Diffuse -> do
         let -- TODO: handle surface factors
-            directionToLight = x --> lightPosition
+            directionToLight = x --> position (lights scene !! 0)
             directionToLightNormalized = normalize directionToLight
             coef = max 0 (dot normal directionToLightNormalized / (pi * lightDistance2))
 
@@ -88,17 +88,17 @@ subRadiance depth ray = case rayIntersectObjets ray scene of
                   )
                   directionToLightNormalized
               )
-              scene lightDistance2
+              (objects scene) lightDistance2
 
             visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
-            directLightContrib = visibility .*. lightEmission .*. coef
+            directLightContrib = visibility .*. emission (lights scene !! 0) .*. coef
 
         -- Indirect lighting
         u <- randomIO @Float
         v <- randomIO @Float
         -- Sample a direction proportional to cosinus
-        let (pdf, indirectDirection) = rotateVector normal <$> sampleCosinus u v
+        let (_pdf, indirectDirection) = rotateVector normal <$> sampleCosinus u v
 
             -- The surface value is cos / pi, which is equal to the pdf. So they cancels.
             -- coefIndirect = (dot indirectDirection normal / pi) / pdf
