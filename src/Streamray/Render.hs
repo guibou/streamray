@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -20,7 +21,7 @@ import Streamray.Material
 import Streamray.Ray
 import Streamray.Sampling
 import Streamray.Scene
-import System.Random
+import System.Random.Stateful
 
 -- | Compute the direct lighting for a diffuse material
 directLighting :: V3 'Position -- ^ Position of the lighting
@@ -56,19 +57,22 @@ directLighting x normal light = do
   visibility .*. emission light .*. coef
 
 -- | Returns the pixel color associated with a 'Ray'
-radiance :: Int -> Ray -> IO (Maybe (V3 'Color))
-radiance 5 _ = pure $ Just (C 0 0 0)
-radiance depth ray = do
-  r <- randomIO @Float
+radiance :: StatefulGen g m => Int -> Ray -> g -> m (Maybe (V3 'Color))
+radiance 5 _ _ = pure $ Just (C 0 0 0)
+radiance depth ray g = do
+  r <- uniformF g
 
   let coefRR = if depth == 0 then 1 else 0.5
 
   if r < coefRR
-    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance depth ray
+    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance depth ray g
     else pure $ Just (C 0 0 0)
 
-subRadiance :: Int -> Ray -> IO (Maybe (V3 'Color))
-subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
+uniformF :: StatefulGen g m => g -> m Float
+uniformF = uniformRM (0, 1)
+
+subRadiance :: forall g m. StatefulGen g m => Int -> Ray -> g -> m (Maybe (V3 'Color))
+subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
   Nothing -> pure Nothing
   Just (Intersection (Object (Material albedo behavior) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray
@@ -79,7 +83,7 @@ subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
         mirrorContribution = do
           let reflectedDirection = reflect normal (direction ray)
               reflectedRay = Ray (x .+. epsilon .*. reflectedDirection) reflectedDirection
-          contrib <- radiance (depth + 1) reflectedRay
+          contrib <- radiance (depth + 1) reflectedRay g
           pure $ fromMaybe (C 0 0 0) contrib
 
     Just . (albedo .*.) <$> case behavior of
@@ -91,26 +95,26 @@ subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
           Nothing -> mirrorContribution
           -- Glass contribution, with refraction and transmission
           Just (coef, transmittedDirection) -> do
-            (r :: Float) <- randomIO
+            (r :: Float) <- uniformF g
 
             -- Pick a random choice, with probability (PDF) = coef
             if r < coef
               then do
                 -- This choice was picked with PDF = coef, and is weighted by coef (the transmission factor). Both cancels
                 let transmittedRay = Ray (x .+. (epsilon * 3) .*. transmittedDirection) transmittedDirection
-                fromMaybe (C 0 0 0) <$> radiance (depth + 1) transmittedRay
+                fromMaybe (C 0 0 0) <$> radiance (depth + 1) transmittedRay g
               else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
                 mirrorContribution
       Mirror -> mirrorContribution
       Diffuse -> do
         -- Sample uniformly one light
         -- TODO: we would like to do that by importance
-        lu <- randomRIO (0, length (lights scene) - 1)
+        lu <- uniformRM (0, length (lights scene) - 1) g
         let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLighting x normal (lights scene !! lu)
 
         -- Indirect lighting
-        u <- randomIO @Float
-        v <- randomIO @Float
+        u <- uniformF g
+        v <- uniformF g
         -- Sample a direction proportional to cosinus
         let (_pdf, indirectDirection) = rotateVector normal <$> sampleCosinus u v
 
@@ -119,7 +123,7 @@ subRadiance depth ray = case rayIntersectObjets ray (objects scene) of
             coefIndirect :: Float = 1
             indirectRay = Ray (x .+. epsilon .*. indirectDirection) indirectDirection
 
-        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance (depth + 1) indirectRay
+        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance (depth + 1) indirectRay g
 
         pure $ directLightContrib .+. (coefIndirect .*. contribIndirect)
 
@@ -148,8 +152,8 @@ ftonemap = truncate @Float @Pixel8 . max 0 . min 255 . (* 255) . (** (1 / 2.2))
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
-raytrace :: Int -> Int -> IO PixelRGBA8
-raytrace (fromIntegral -> x) (fromIntegral -> y) = do
+raytrace :: forall g m. StatefulGen g m => Int -> Int -> g -> m PixelRGBA8
+raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
   let nSamples = 10
   -- Oversample the pixel
   rs <- replicateM nSamples runRay
@@ -164,8 +168,8 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) = do
     runRay = do
       -- Box filtering of 1x1
       -- TODO: we should move to FIS filtering for smoother results
-      dx <- randomIO @Float
-      dy <- randomIO @Float
+      dx <- uniformF g
+      dy <- uniformF g
       let -- Generate a ray in the XY plane and pointing in the Z direction
           coefOpening = 1.001
 
@@ -178,8 +182,8 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) = do
 
           d = normalize (n' --> f)
           ray = Ray n d
-      radiance 0 ray
+      radiance 0 ray g
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: FilePath -> IO ()
-raytraceImage path = writePng path =<< withImage 500 500 raytrace
+raytraceImage path = writePng path $ generateImage (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace x y)) 500 500
