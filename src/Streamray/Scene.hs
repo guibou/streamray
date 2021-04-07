@@ -29,19 +29,19 @@ sphereRadius = 5000
 objects' :: [Object]
 objects' =
   [ Object
-      (Material (C 1 1 0) Diffuse)
+      (Material (C 0.6 0.6 0) Diffuse)
       (Sphere (P (sphereRadius + 500) 250 0) sphereRadius), -- Right
     Object
-      (Material (C 0 1 1) Diffuse)
+      (Material (C 0 0.6 0.6) Diffuse)
       (Sphere (P (- sphereRadius) 250 0) sphereRadius), -- Left
     Object
-      (Material (C 1 1 1) Diffuse)
+      (Material (C 0.6 0.6 0.6) Diffuse)
       (Sphere (P 250 (- sphereRadius) 0) sphereRadius), -- Top
     Object
-      (Material (C 1 1 1) Diffuse)
+      (Material (C 0.6 0.6 0.6) Diffuse)
       (Sphere (P 250 (sphereRadius + 500) 0) sphereRadius), -- Bottom
     Object
-      (Material (C 1 1 1) Diffuse)
+      (Material (C 0.6 0.6 0.6) Diffuse)
       (Sphere (P 250 250 (sphereRadius + 500)) sphereRadius), -- Back
       -- Small sphere 1
     Object
