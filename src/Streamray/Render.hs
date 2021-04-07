@@ -13,6 +13,8 @@
 module Streamray.Render where
 
 import Codec.Picture
+import Codec.Picture.Types (newMutableImage, unsafeFreezeImage)
+import Control.Concurrent.Async
 import Control.Monad (replicateM)
 import Data.Foldable
 import Data.Maybe
@@ -24,10 +26,14 @@ import Streamray.Scene
 import System.Random.Stateful
 
 -- | Compute the direct lighting for a diffuse material
-directLighting :: V3 'Position -- ^ Position of the lighting
-  -> V3 ('Direction k) -- ^ Surface normal (object must be on the positive side of the normal)
-  -> Light -- ^ Light
-  -> V3 'Color
+directLighting ::
+  -- | Position of the lighting
+  V3 'Position ->
+  -- | Surface normal (object must be on the positive side of the normal)
+  V3 ('Direction k) ->
+  -- | Light
+  Light ->
+  V3 'Color
 directLighting x normal light = do
   let directionToLight = x --> position light
       directionToLightNormalized = normalize directionToLight
@@ -186,4 +192,18 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: FilePath -> IO ()
-raytraceImage path = writePng path $ generateImage (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace x y)) 500 500
+raytraceImage path = writePng path =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace x y))
+
+withImageParallel :: Int -> Int -> (Int -> Int -> PixelRGBA8) -> IO (Image PixelRGBA8)
+withImageParallel w h f = do
+  im <- newMutableImage w h
+
+  forConcurrently_ (chunksOf 10 [0 .. (h -1)]) $ \ys -> do
+    for_ ys $ \y -> do
+      for_ [0 .. (w -1)] $ \x -> writePixel im x y (f x y)
+
+  unsafeFreezeImage im
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n l = take n l : chunksOf n (drop n l)

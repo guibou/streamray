@@ -22,7 +22,7 @@ maintainer:         guillaum.bouchard@gmail.com
 extra-source-files: CHANGELOG.md
 
 library
-    build-depends:    base ^>=4.14.1.0, JuicyPixels, random
+    build-depends:    base ^>=4.14.1.0, JuicyPixels, random, async
     hs-source-dirs:   src
     exposed-modules: Streamray.Linear
                    , Streamray.Render
@@ -45,4 +45,4 @@ executable streamray
     build-depends:    base ^>=4.14.1.0, JuicyPixels, streamray
     hs-source-dirs:   app
     default-language: Haskell2010
-    ghc-options: -Wall -haddock
+    ghc-options: -Wall -haddock -rtsopts -threaded
