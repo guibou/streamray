@@ -121,6 +121,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       t0 = b - sqrtDelta
       t1 = b + sqrtDelta
    in if
+         -- TODO: check if removing this test is good for performances
           | delta < 0 -> Nothing -- No solution, the ray missed the sphere
           | t0 >= 0 -> Just t0 -- t0 solution is the smallest (by construction), and is positive. The ray hit the front of the sphere.
           | t1 >= 0 -> Just t1 -- t1 solution is the smallest positive. The ray started inside the sphere and exits it.
