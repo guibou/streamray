@@ -16,8 +16,11 @@ data MaterialBehavior
   deriving (Show)
 
 -- | Material, with albedo and behavior
-data Material
-  = Material (V3 'Color) MaterialBehavior
+data Material = Material
+  { albedo :: V3 'Color,
+    behavior :: MaterialBehavior,
+    emission :: V3 'Color
+  }
   deriving (Show)
 
 -- | Compute the reflexion vector

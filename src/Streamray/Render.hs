@@ -26,17 +26,33 @@ import Streamray.Scene
 import System.Random.Stateful
 
 -- | Compute the direct lighting for a diffuse material
-directLighting ::
+directLighting :: StatefulGen g m =>
   -- | Position of the lighting
   V3 'Position ->
   -- | Surface normal (object must be on the positive side of the normal)
   V3 ('Direction k) ->
   -- | Light
   Light ->
-  V3 'Color
-directLighting x normal light = do
-  let directionToLight = x --> position light
-      directionToLightNormalized = normalize directionToLight
+  g ->
+  m (V3 'Color)
+directLighting x normal light g = do
+  (directionToLight, coefNormLight) <- case Streamray.Scene.behavior light of
+    PointLight p -> pure (x --> p, 1)
+    SphereLight Sphere{radius, center} -> do
+      -- Indirect lighting
+      u <- uniformF g
+      v <- uniformF g
+
+      let sphereRotationAxis = normalize (center --> x)
+
+      -- Sample a direction proportional to cosinus
+      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus u v
+      let pointOnLight = center .+. radius .*. sampledDirection
+      let directionToLight = x --> pointOnLight
+      let cosFactor = - dot (normalize (center --> pointOnLight)) (normalize directionToLight)
+
+      pure (x --> pointOnLight, (radius * radius * cosFactor / pi) / (pdf * radius * radius))
+  let directionToLightNormalized = normalize directionToLight
 
       -- Diffuse shading
       coef = max 0 (dot normal directionToLightNormalized / (pi * lightDistance2))
@@ -56,31 +72,32 @@ directLighting x normal light = do
               directionToLightNormalized
           )
           (objects scene)
-          lightDistance2
+          -- TODO: optimise this
+          (lightDistance2 + 4 * epsilon * epsilon - 4 * epsilon * sqrt lightDistance2)
 
       visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
-  visibility .*. emission light .*. coef
+  pure $ coefNormLight .*. visibility .*. Streamray.Scene.emission light .*. coef
 
 -- | Returns the pixel color associated with a 'Ray'
-radiance :: StatefulGen g m => Int -> Ray -> g -> m (Maybe (V3 'Color))
-radiance 5 _ _ = pure $ Just (C 0 0 0)
-radiance depth ray g = do
+radiance :: StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
+radiance _ 5 _ _ = pure $ Just (C 0 0 0)
+radiance lastWasSpecular depth ray g = do
   r <- uniformF g
 
   let coefRR = if depth == 0 then 1 else 0.5
 
   if r < coefRR
-    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance depth ray g
+    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance lastWasSpecular depth ray g
     else pure $ Just (C 0 0 0)
 
 uniformF :: StatefulGen g m => g -> m Float
 uniformF = uniformRM (0, 1)
 
-subRadiance :: forall g m. StatefulGen g m => Int -> Ray -> g -> m (Maybe (V3 'Color))
-subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
+subRadiance :: forall g m. StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
+subRadiance lastWasSpecular depth ray g = case rayIntersectObjets ray (objects scene) of
   Nothing -> pure Nothing
-  Just (Intersection (Object (Material albedo behavior) sphere) t) -> do
+  Just (Intersection (Object (Material albedo behavior emission) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray
         normal = normalize (center sphere --> x)
 
@@ -89,7 +106,7 @@ subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
         mirrorContribution = do
           let reflectedDirection = reflect normal (direction ray)
               reflectedRay = Ray (x .+. epsilon .*. reflectedDirection) reflectedDirection
-          contrib <- radiance (depth + 1) reflectedRay g
+          contrib <- radiance True (depth + 1) reflectedRay g
           pure $ fromMaybe (C 0 0 0) contrib
 
     Just . (albedo .*.) <$> case behavior of
@@ -108,7 +125,7 @@ subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
               then do
                 -- This choice was picked with PDF = coef, and is weighted by coef (the transmission factor). Both cancels
                 let transmittedRay = Ray (x .+. (epsilon * 3) .*. transmittedDirection) transmittedDirection
-                fromMaybe (C 0 0 0) <$> radiance (depth + 1) transmittedRay g
+                fromMaybe (C 0 0 0) <$> radiance True (depth + 1) transmittedRay g
               else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
                 mirrorContribution
       Mirror -> mirrorContribution
@@ -116,7 +133,8 @@ subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
         -- Sample uniformly one light
         -- TODO: we would like to do that by importance
         lu <- uniformRM (0, length (lights scene) - 1) g
-        let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLighting x normal (lights scene !! lu)
+        directLightContrib' <- directLighting x normal (lights scene !! lu) g
+        let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLightContrib'
 
         -- Indirect lighting
         u <- uniformF g
@@ -129,9 +147,9 @@ subRadiance depth ray g = case rayIntersectObjets ray (objects scene) of
             coefIndirect :: Float = 1
             indirectRay = Ray (x .+. epsilon .*. indirectDirection) indirectDirection
 
-        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance (depth + 1) indirectRay g
+        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance False (depth + 1) indirectRay g
 
-        pure $ directLightContrib .+. (coefIndirect .*. contribIndirect)
+        pure $ directLightContrib .+. (coefIndirect .*. contribIndirect) .+. (if lastWasSpecular then emission else C 0 0 0)
 
 sameSide :: V3 ('Direction k) -> V3 ('Direction k'1) -> V3 ('Direction k'2) -> Bool
 sameSide n v0 v1 = (dot n v0 * dot n v1) > 0
@@ -188,7 +206,7 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
 
           d = normalize (n' --> f)
           ray = Ray n d
-      radiance 0 ray g
+      radiance True 0 ray g
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: FilePath -> IO ()

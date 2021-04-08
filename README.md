@@ -4,6 +4,18 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #7
+=========
+
+- We worked a bit on performance again, reduced the random generator overhead
+  by threading the random generator through the function calls. This removes
+  the concurrent access on the global RNG which is sync and hence slow.
+- We added `async` and multi core rendering.
+- We extended the `Light` data type to include sphere light, which are now
+  extracted from the sphere objects with an emission behavior.
+
+![](results/stream7.png)
+
 Stream #6
 =========
 
