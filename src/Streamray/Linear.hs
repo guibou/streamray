@@ -51,8 +51,8 @@ module Streamray.Linear
   )
 where
 
-import Data.Coerce
 import Control.Exception (assert)
+import Data.Coerce
 
 -- | Represents whether a direction is normalized or not
 data DirectionKind = Normalized | NotNormalized
@@ -169,12 +169,7 @@ pattern N :: Float -> Float -> Float -> V3 ('Direction 'Normalized)
 pattern N x y z <-
   V3 x y z
   where
-    N x y z = V3 x' y' z'
-      where
-        n = norm (D x y z)
-        x' = x / n
-        y' = y / n
-        z' = z / n
+    N x y z = normalize (D x y z)
 
 -- | Color
 pattern C :: Float -> Float -> Float -> V3 'Color
@@ -190,14 +185,21 @@ dot (V3 x y z) (V3 x' y' z') = x * x' + y * y' + z * z'
 
 -- | Normalize a direction
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
-normalize (V3 x y z) = N x y z
+normalize (V3 x y z) = V3 x' y' z'
+  where
+    n = norm (D x y z)
+    x' = x / n
+    y' = y / n
+    z' = z / n
 
 {-# INLINE norm #-}
+
 -- | Return the norm
 norm :: V3 ('Direction 'NotNormalized) -> Float
 norm = sqrt . normSquared
 
 {-# INLINE normSquared #-}
+
 -- | Return the squared norm
 normSquared :: V3 ('Direction 'NotNormalized) -> Float
 normSquared (V3 x y z) = x * x + y * y + z * z
@@ -222,6 +224,9 @@ flipDirection (V3 x y z) = V3 (- x) (- y) (- z)
 x --> y = y .-. x
 
 {-# COMPLETE P #-}
+
 {-# COMPLETE N #-}
+
 {-# COMPLETE D #-}
+
 {-# COMPLETE C #-}
