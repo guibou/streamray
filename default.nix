@@ -25,7 +25,7 @@
       ++ [ pkgs.haskellPackages.haskell-language-server ];
   });
 
-  haskellPackage = pkgs.haskell.packages.ghc8104.override {
+  haskellPackages = pkgs.haskell.packages.ghc8104.override {
     overrides = self: super: {
       # used for asset loading
       wavefront = pkgs.haskell.lib.doJailbreak super.wavefront;
@@ -36,12 +36,12 @@
     };
   };
 
-  app = ((haskellPackage.callCabal2nix "streamray" sources {
+  app = ((haskellPackages.callCabal2nix "streamray" sources {
   }).overrideAttrs (oldAttrs: {
     buildInputs = oldAttrs.buildInputs;
     passthru = oldAttrs.passthru // { inherit shell shell_hls; };
   })).override {
-      random = haskellPackage.random_1_2_0;
+      random = haskellPackages.random_1_2_0;
   };
 
   formatting-fix = pkgs.mkShell {
