@@ -38,6 +38,8 @@ module Streamray.Linear
     dot,
     flipDirection,
     (-->),
+    norm,
+    normSquared,
 
     -- * Patterns
     pattern P,
@@ -50,6 +52,7 @@ module Streamray.Linear
 where
 
 import Data.Coerce
+import Control.Exception (assert)
 
 -- | Represents whether a direction is normalized or not
 data DirectionKind = Normalized | NotNormalized
@@ -168,7 +171,7 @@ pattern N x y z <-
   where
     N x y z = V3 x' y' z'
       where
-        n = sqrt (x * x + y * y + z * z)
+        n = norm (D x y z)
         x' = x / n
         y' = y / n
         z' = z / n
@@ -189,11 +192,22 @@ dot (V3 x y z) (V3 x' y' z') = x * x' + y * y' + z * z'
 normalize :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
 normalize (V3 x y z) = N x y z
 
+{-# INLINE norm #-}
+-- | Return the norm
+norm :: V3 ('Direction 'NotNormalized) -> Float
+norm = sqrt . normSquared
+
+{-# INLINE normSquared #-}
+-- | Return the squared norm
+normSquared :: V3 ('Direction 'NotNormalized) -> Float
+normSquared (V3 x y z) = x * x + y * y + z * z
+
 {-# INLINE unsafeNormalized #-}
 
 -- | Assume that the vector is normalized
 unsafeNormalized :: V3 ('Direction 'NotNormalized) -> V3 ('Direction 'Normalized)
-unsafeNormalized = coerce
+-- The assertion here checks that the vector is indeed correctly normalized
+unsafeNormalized v = assert (normSquared v - 1 < 0.0001) $ coerce v
 
 {-# INLINE flipDirection #-}
 
