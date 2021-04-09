@@ -7,6 +7,7 @@ import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Light
+import Streamray.Intersect
 import Data.Maybe (mapMaybe)
 
 -- TODO: it should be vector instead of list

@@ -25,6 +25,7 @@ import Streamray.Sampling
 import Streamray.Scene
 import Streamray.Light
 import System.Random.Stateful
+import Streamray.Intersect
 
 -- | Compute the direct lighting for a diffuse material
 directLighting :: StatefulGen g m =>
