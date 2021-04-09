@@ -23,6 +23,7 @@ import Streamray.Material
 import Streamray.Ray
 import Streamray.Sampling
 import Streamray.Scene
+import Streamray.Light
 import System.Random.Stateful
 
 -- | Compute the direct lighting for a diffuse material
@@ -36,7 +37,7 @@ directLighting :: StatefulGen g m =>
   g ->
   m (V3 'Color)
 directLighting x normal light g = do
-  (directionToLight, coefNormLight) <- case Streamray.Scene.behavior light of
+  (directionToLight, coefNormLight) <- case Streamray.Light.behavior light of
     PointLight p -> pure (x --> p, 1)
     SphereLight Sphere{radius, center} -> do
       -- Indirect lighting
@@ -77,7 +78,7 @@ directLighting x normal light g = do
 
       visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
-  pure $ coefNormLight .*. visibility .*. Streamray.Scene.emission light .*. coef
+  pure $ coefNormLight .*. visibility .*. Streamray.Light.emission light .*. coef
 
 -- | Returns the pixel color associated with a 'Ray'
 radiance :: StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))

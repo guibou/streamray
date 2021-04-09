@@ -30,6 +30,7 @@ library
                    , Streamray.Ray
                    , Streamray.Scene
                    , Streamray.Sampling
+                   , Streamray.Light
     default-language: Haskell2010
     ghc-options: -Wall -haddock
 

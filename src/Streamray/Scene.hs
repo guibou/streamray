@@ -6,18 +6,8 @@ module Streamray.Scene where
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
+import Streamray.Light
 import Data.Maybe (mapMaybe)
-
-data Light = Light
-  { behavior :: LightBehavior,
-    emission :: V3 'Color
-  }
-  deriving (Show)
-
-data LightBehavior
-  = PointLight (V3 'Position)
-  | SphereLight Sphere
-  deriving (Show)
 
 -- TODO: it should be vector instead of list
 data Scene = Scene
@@ -95,8 +85,3 @@ lights' = [
     Light (PointLight (P 50 250 250)) (C 30000 10000 10000),
     Light (PointLight (P 450 250 250)) (C 10000 10000 30000)
     ]
-
-objectToLight :: Object -> Maybe Light
-objectToLight (Object (Material _ _ emit) o)
-  | emit == black = Nothing
-  | otherwise = Just (Light (SphereLight o) emit)

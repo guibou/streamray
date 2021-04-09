@@ -65,7 +65,7 @@ data Space
 
 -- | This is a point in 3D associated with a space
 data V3 (k :: Space) = V3 {-# UNPACK #-} !Float {-# UNPACK #-} !Float {-# UNPACK #-} !Float
-  deriving (Show, Eq)
+  deriving (Show)
 
 -- * Add
 
