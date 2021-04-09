@@ -6,23 +6,27 @@ module Streamray.Sampling
   ( sampleCosinus,
     rotateVector,
     uniformF,
+    uniform2F,
+    makeBase,
+    Sample2D(..),
   )
 where
 
 import Streamray.Linear
 import System.Random.Stateful
 
+data Sample2D = Sample2D {-# UNPACK #-} !Float {-# UNPACK #-} !Float
+  deriving (Show)
+
 -- | Sampling proportional to cosinus weighted on hemisphere
 -- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
 -- Formula 35: sampling proportional to cosinus weighted on hemisphere
 sampleCosinus ::
-  -- | Random U
-  Float ->
-  -- | Random V
-  Float ->
+  -- | Random sample
+  Sample2D ->
   -- | (pdf, sampledDirection)
   (Float, V3 ('Direction 'Normalized))
-sampleCosinus u v =
+sampleCosinus (Sample2D u v) =
   let phi = 2 * pi * u
       sqrt_v = sqrt v
       theta = acos (sqrt v)
@@ -64,3 +68,6 @@ rotateVector normal (N x y z) =
 -- | Uniform sampling of a random number in [0, 1]
 uniformF :: StatefulGen g m => g -> m Float
 uniformF = uniformRM (0, 1)
+
+uniform2F :: StatefulGen g m => g -> m Sample2D
+uniform2F g = Sample2D <$> uniformF g <*> uniformF g

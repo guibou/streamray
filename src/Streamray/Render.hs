@@ -42,13 +42,12 @@ directLighting x normal light g = do
     PointLight p -> pure (x --> p, 1)
     SphereLight Sphere{radius, center} -> do
       -- Indirect lighting
-      u <- uniformF g
-      v <- uniformF g
+      uv <- uniform2F g
 
       let sphereRotationAxis = normalize (center --> x)
 
       -- Sample a direction proportional to cosinus
-      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus u v
+      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus uv
       let pointOnLight = center .+. radius .*. sampledDirection
       let directionToLight = x --> pointOnLight
       let cosFactor = - dot (normalize (center --> pointOnLight)) (normalize directionToLight)
@@ -138,10 +137,9 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
         let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLightContrib'
 
         -- Indirect lighting
-        u <- uniformF g
-        v <- uniformF g
+        uv <- uniform2F g
         -- Sample a direction proportional to cosinus
-        let (_pdf, indirectDirection) = rotateVector normal <$> sampleCosinus u v
+        let (_pdf, indirectDirection) = rotateVector normal <$> sampleCosinus uv
 
             -- The surface value is cos / pi, which is equal to the pdf. So they cancels.
             -- coefIndirect = (dot indirectDirection normal / pi) / pdf
