@@ -4,6 +4,23 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #8
+=========
+
+Support for a high number of primitives (still spheres).
+
+We added a `Box` primitive, as well as a `BHV` object, which split the scene in
+a tree. Walking this tree is more efficient than a linear search for
+intersection.
+
+This approach proved its benefits, but we really need to improve the
+implementation efficiency during next stream.
+
+This scene, composed of 9261 spheres is rendered in 20s. In comparison, a scene
+with 25 spheres was rendered in 10s without the acceleration structure.
+
+![](results/stream8.png)
+
 Stream #7
 =========
 

@@ -61,7 +61,7 @@ directLighting x normal light g = do
 
       -- Trace a ray toward the light source and check for intersection
       canSeeLightSource =
-        testRayVisibility
+        testRayVisibilityBVH
           ( Ray
               -- The origin of the ray is biased toward the light to avoid self
               -- shadows if the point is slightly under the surface due to
@@ -95,7 +95,7 @@ uniformF :: StatefulGen g m => g -> m Float
 uniformF = uniformRM (0, 1)
 
 subRadiance :: forall g m. StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-subRadiance lastWasSpecular depth ray g = case rayIntersectObjets ray (objects scene) of
+subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scene) of
   Nothing -> pure Nothing
   Just (Intersection (Object (Material albedo behavior emission) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray

@@ -32,6 +32,115 @@ data Sphere = Sphere
 
 data Intersection = Intersection Object {-# UNPACK #-} !Float
 
+data Box = Box (V3 'Position) (V3 'Position)
+  deriving (Show)
+
+instance Semigroup Box where
+  Box pMin pMax <> Box pMin' pMax' =
+    Box (minP pMin pMin') (maxP pMax pMax')
+    where
+      minP (P x y z) (P x' y' z') = P (min x x') (min y y') (min z z')
+      maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
+
+data Axis = X | Y | Z
+  deriving (Show)
+
+boxBiggestAxis :: Box -> Axis
+boxBiggestAxis (Box pMin pMax)
+  | x >= y && x >= z = X
+  | y >= z = Y
+  | otherwise = Z
+  where
+    UnsafeV3 x y z = pMin --> pMax
+
+data BVH
+  = BVHNode Box BVH BVH
+  | BVHLeaf Object
+  deriving (Show)
+
+buildBVH :: [Object] -> BVH
+buildBVH [] = error "it should not happen"
+buildBVH [x] = BVHLeaf x
+buildBVH l = BVHNode box subA subB
+  where
+    box = makeBox l
+    axis = boxBiggestAxis box
+
+    l' = sortOn fSort l
+
+    fSort (Object _ (Sphere (UnsafeV3 x y z) _)) = case axis of
+      X -> x
+      Y -> y
+      Z -> z
+
+    len = length l'
+
+    subA = buildBVH (take (len `div` 2) l')
+    subB = buildBVH (drop (len `div` 2) l')
+
+makeBox :: [Object] -> Box
+makeBox [] = error "it should not happen 2"
+makeBox (Object _ sphere : xs) = foldl' f (sphereToBox sphere) xs
+  where
+    f box (Object _ sphere') = box <> sphereToBox sphere'
+
+rayIntersectBVH :: Ray -> BVH -> Maybe Intersection
+rayIntersectBVH ray (BVHLeaf o@(Object _ sphere)) = Intersection o <$> rayIntersectSphere ray sphere
+rayIntersectBVH ray (BVHNode box subTreeA subTreeB) =
+  case rayIntersectBox ray box of
+    Nothing -> Nothing
+    Just _ ->
+      let itA = rayIntersectBVH ray subTreeA
+          itB = rayIntersectBVH ray subTreeB
+       in case (itA, itB) of
+            (Nothing, b) -> b
+            (a, Nothing) -> a
+            (a@(Just (Intersection _ t)), b@(Just (Intersection _ t')))
+              | t < t' -> a
+              | otherwise -> b
+
+-- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
+
+{-# INLINE rayIntersectBox #-}
+-- | return 'True' if 'Ray' intersects 'Box'
+rayIntersectBox :: Ray -> Box -> Maybe Float
+rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (UnsafeV3 pminx pminy pminz) (UnsafeV3 pmaxx pmaxy pmaxz))
+  | tmax'' < tmin'' = Nothing
+  | tmin'' >= 0 = Just tmin''
+  | tmax'' >= 0 = Just tmax''
+  | otherwise = Nothing
+  where
+    rinvx = 1 / dx
+    rinvy = 1 / dy
+    rinvz = 1 / dz
+
+    -- X slab
+    tx1 = (pminx - ox) * rinvx
+    tx2 = (pmaxx - ox) * rinvx
+
+    tmin = min tx1 tx2
+    tmax = max tx1 tx2
+
+    -- Y slab
+    ty1 = (pminy - oy) * rinvy
+    ty2 = (pmaxy - oy) * rinvy
+
+    tmin' = max tmin $ min ty1 ty2
+    tmax' = min tmax $ max ty1 ty2
+
+    -- Z slab
+    tz1 = (pminz - oz) * rinvz
+    tz2 = (pmaxz - oz) * rinvz
+
+    tmin'' = max tmin' $ min tz1 tz2
+    tmax'' = min tmax' $ max tz1 tz2
+
+-- | Test visibility with early exit
+testRayVisibilityBVH :: Ray -> BVH -> Float -> Bool
+testRayVisibilityBVH ray bvh distance2 = case rayIntersectBVH ray bvh of
+  Nothing -> True
+  Just (Intersection _ t) -> t * t >= distance2
+
 -- | Test visibility with early exit
 testRayVisibility :: Ray -> [Object] -> Float -> Bool
 testRayVisibility ray objects distance2 = go objects
@@ -53,6 +162,11 @@ rayIntersectObjets ray = foldl' f Nothing
       Just t'
         | t' < t -> Just (Intersection obj' t')
         | otherwise -> res
+
+sphereToBox :: Sphere -> Box
+sphereToBox (Sphere center radius) = Box (center .+. flipDirection dRadius) (center .+. dRadius)
+  where
+    dRadius = D radius radius radius
 
 {-# INLINE rayIntersectSphere #-}
 

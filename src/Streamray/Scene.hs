@@ -21,7 +21,7 @@ data LightBehavior
 
 -- TODO: it should be vector instead of list
 data Scene = Scene
-  { objects :: [Object],
+  { objects :: BVH,
     lights :: [Light]
   }
   deriving (Show)
@@ -32,6 +32,7 @@ sphereRadius = 5000
 
 -- | Initial scene. It is a box built with (big) spheres for the walls. Change
 -- 'sphereRadius' in order to flatten the walls.
+{-
 objects' :: [Object]
 objects' =
   [ Object
@@ -62,6 +63,22 @@ objects' =
       (Material (C 0.5 0.5 0.5) Diffuse (C 10000 10000 10000))
       (Sphere (P 250 150 250) 30)
   ]
+-}
+
+dd :: Float
+dd = 25
+
+objects' :: [Object]
+objects' = do
+    x <- [0,dd..500]
+    y <- [0,dd..500]
+    z <- [0,dd..500]
+
+    pure $ Object white (Sphere (P x y z) 10)
+
+white :: Material
+white = Material (C 1 1 1) Diffuse black
+
 
 black :: V3 'Color
 black = C 0 0 0
@@ -69,7 +86,7 @@ black = C 0 0 0
 scene :: Scene
 scene =
   Scene
-    objects'
+    (buildBVH objects')
     (lights' ++ mapMaybe objectToLight objects')
 
 lights' :: [Light]
@@ -80,6 +97,6 @@ lights' = [
     ]
 
 objectToLight :: Object -> Maybe Light
-objectToLight (Object (Material _ _ emission) o)
-  | emission == black = Nothing
-  | otherwise = Just (Light (SphereLight o) emission)
+objectToLight (Object (Material _ _ emit) o)
+  | emit == black = Nothing
+  | otherwise = Just (Light (SphereLight o) emit)
