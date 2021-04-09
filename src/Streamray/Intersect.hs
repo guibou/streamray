@@ -1,13 +1,13 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE DataKinds #-}
 
 -- | This module contains everything needed to intersect ray with primitives.
 module Streamray.Intersect where
 
+import Data.List (foldl', sortOn)
 import Streamray.Linear
 import Streamray.Ray
-import Data.List (sortOn, foldl')
 
 -- | Represents an intersection
 data Intersection = Intersection Object {-# UNPACK #-} !Float
@@ -53,8 +53,8 @@ rayIntersectBVH ray bvh = go bvh Nothing
           | t' < t -> Just $ Intersection o t'
           | otherwise -> currentIt
     go (BVHNode boxA boxB subTreeA subTreeB) currentIt = do
-        -- Continue walking the subtree only if the box intersection is closer
-        -- than the current intersection.
+      -- Continue walking the subtree only if the box intersection is closer
+      -- than the current intersection.
       let continue tBox sub currentIt' =
             let currentItIsCloser = case currentIt' of
                   Nothing -> False
@@ -62,7 +62,7 @@ rayIntersectBVH ray bvh = go bvh Nothing
              in if currentItIsCloser
                   then currentIt'
                   else go sub currentIt'
-      case (rayIntersectBox ray boxA, rayIntersectBox ray boxB) of
+      case (rayFirstOffsetInBox ray boxA, rayFirstOffsetInBox ray boxB) of
         (Nothing, Nothing) -> currentIt
         (Just tBoxA, Nothing) -> continue tBoxA subTreeA currentIt
         (Nothing, Just tBoxB) -> continue tBoxB subTreeB currentIt
@@ -85,20 +85,41 @@ rayIntersectObjets ray = foldl' f Nothing
         | t' < t -> Just (Intersection obj' t')
         | otherwise -> res
 
-
 -- * Box
+-- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
+
+{-# INLINE rayFirstOffsetInBox #-}
+
+-- | return the first positive offset of the ray which is in the box. It will
+-- be 0 if the ray starts from inside the box.
+rayFirstOffsetInBox :: Ray -> Box -> Maybe Float
+rayFirstOffsetInBox ray box = case rayIntersectBoxRange ray box of
+  Nothing -> Nothing
+  Just (tmin, tmax)
+    | tmin >= 0 -> Just tmin
+    | tmax >= 0 -> Just 0
+    | otherwise -> Nothing
 
 {-# INLINE rayIntersectBox #-}
 
--- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
-
--- | return 'True' if 'Ray' intersects 'Box'
+-- | returns the first (positive) intersection of the ray with the box
 rayIntersectBox :: Ray -> Box -> Maybe Float
-rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pmaxx pmaxy pmaxz))
+rayIntersectBox ray box = case rayIntersectBoxRange ray box of
+  Nothing -> Nothing
+  Just (tmin, tmax)
+    | tmin >= 0 -> Just tmin
+    | tmax >= 0 -> Just tmax
+    | otherwise -> Nothing
+
+{-# INLINE rayIntersectBoxRange #-}
+
+-- | Returns the entry and exit point of ray/box intersection. That is,
+-- @rayIntersectBoxRange ray box@ returns @Just (tmin, tmax)@ meaning that the
+-- ray enter the box at @tmin@ and exit it at @tmax@, which can be negative.
+rayIntersectBoxRange :: Ray -> Box -> Maybe (Float, Float)
+rayIntersectBoxRange (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pmaxx pmaxy pmaxz))
   | tmax'' < tmin'' = Nothing
-  | tmin'' >= 0 = Just tmin''
-  | tmax'' >= 0 = Just 0
-  | otherwise = Nothing
+  | otherwise = Just (tmin'', tmax'')
   where
     rinvx = 1 / dx
     rinvy = 1 / dy
@@ -134,11 +155,11 @@ testRayVisibilityBVH ray (BVHLeaf (Object _ sphere)) distance2 = case rayInterse
   Just t -> t * t >= distance2
 testRayVisibilityBVH ray (BVHNode boxA boxB subTreeA subTreeB) distance2 = visibleA && visibleB
   where
-    itBoxA = case rayIntersectBox ray boxA of
+    itBoxA = case rayFirstOffsetInBox ray boxA of
       Nothing -> False
       Just _ -> True
 
-    itBoxB = case rayIntersectBox ray boxB of
+    itBoxB = case rayFirstOffsetInBox ray boxB of
       Nothing -> False
       Just _ -> True
 
@@ -161,6 +182,7 @@ testRayVisibility ray objects distance2 = go objects
 -- * Sphere
 
 {-# INLINE rayIntersectSphere #-}
+
 -- | Intersection between an object and sphere
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
