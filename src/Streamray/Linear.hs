@@ -206,3 +206,8 @@ flipDirection (UnsafeV3 x y z) = UnsafeV3 (- x) (- y) (- z)
 -- | Represents the direction between two points
 (-->) :: V3 'Position -> V3 'Position -> V3 ('Direction 'NotNormalized)
 x --> y = y .-. x
+
+{-# COMPLETE P #-}
+{-# COMPLETE N #-}
+{-# COMPLETE D #-}
+{-# COMPLETE C #-}
