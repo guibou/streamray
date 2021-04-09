@@ -159,21 +159,29 @@ sameSide n v0 v1 = (dot n v0 * dot n v1) > 0
 epsilon :: Float
 epsilon = 0.01
 
+-- | Apply a gamma correction
+gammaCorrect :: Float -> Float
+gammaCorrect = (** (1 / 2.2))
+
 -- | Convert a light measure to a pixel value
 tonemap :: Float -> V3 'Color -> PixelRGBA8
-tonemap alpha v = PixelRGBA8 x y z (truncate . max 0 . min 255 . (* 255) $ alpha)
+tonemap alpha v = PixelRGBA8 x y z (truncateWord8 alpha)
   where
     -- truncate converts to Word8
     -- min/max clamps to the acceptable range
     -- pow (1 / 2.2) is doing gamma correction
     C (ftonemap -> x) (ftonemap -> y) (ftonemap -> z) = v
 
+-- | Clamp a float from [0..1] to Word8 [0..255]
+truncateWord8 :: Float -> Pixel8
+truncateWord8 = truncate @Float @Pixel8 . max 0 . min 255 . (* 255)
+
 -- | Converts a value from a measure to the RGB colorspace in 8bit.
 ftonemap :: Float -> Pixel8
 -- truncate converts to Word8
 -- min/max clamps to the acceptable range
 -- pow (1 / 2.2) is doing gamma correction
-ftonemap = truncate @Float @Pixel8 . max 0 . min 255 . (* 255) . (** (1 / 2.2))
+ftonemap = truncateWord8 . gammaCorrect
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
