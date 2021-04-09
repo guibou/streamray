@@ -26,7 +26,7 @@ data Sphere = Sphere
   { center :: V3 'Position,
     radius :: Float
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | Represents a object, with its shape and material
 data Object = Object Material Sphere
@@ -44,11 +44,11 @@ data BVH
 
 -- | Represents a box aligned with axis
 data Box = Box (V3 'Position) (V3 'Position)
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | An Axis
 data Axis = X | Y | Z
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | Return the largest axis of a box
 boxBiggestAxis :: Box -> Axis

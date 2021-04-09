@@ -64,11 +64,12 @@ data Space
   | -- | A direction in a 3D space. Can be normalized
     Direction DirectionKind
   | -- | A color measurement
+    -- TODO: should I introduce a "normalized" and non normalized color?
     Color
 
 -- | This is a point in 3D associated with a space
 data V3 (k :: Space) = V3 {-# UNPACK #-} !Float {-# UNPACK #-} !Float {-# UNPACK #-} !Float
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- * Add
 

@@ -3,6 +3,6 @@ cradle:
     - path: "./src"
       component: "lib:streamray"
     - path: "./tests"
-      component: "test:test"
+      component: "test:unit"
     - path: "app"
       component: "exe:streamray"

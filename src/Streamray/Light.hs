@@ -12,7 +12,7 @@ data Light = Light
   { behavior :: LightBehavior,
     emission :: V3 'Color
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | The shape of the light
 data LightBehavior
@@ -20,7 +20,7 @@ data LightBehavior
   = PointLight (V3 'Position)
   -- | A sphere
   | SphereLight Sphere
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | Converts an object with possibly an emission to a light.
 objectToLight :: Object -> Maybe Light
