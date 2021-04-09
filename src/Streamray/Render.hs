@@ -81,7 +81,7 @@ directLighting x normal light g = do
 
   pure $ coefNormLight .*. visibility .*. Streamray.Light.emission light .*. coef
 
--- | Returns the pixel color associated with a 'Ray'
+-- | Returns the pixel color associated with a 'Ray'. It performs russian rulette.
 radiance :: StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
 radiance _ 5 _ _ = pure $ Just (C 0 0 0)
 radiance lastWasSpecular depth ray g = do
@@ -93,9 +93,8 @@ radiance lastWasSpecular depth ray g = do
     then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance lastWasSpecular depth ray g
     else pure $ Just (C 0 0 0)
 
-uniformF :: StatefulGen g m => g -> m Float
-uniformF = uniformRM (0, 1)
-
+-- | Returns the pixel color associated with a 'Ray'. This is the same as
+-- 'radiance', but it does not perform russian rulette.
 subRadiance :: forall g m. StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
 subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scene) of
   Nothing -> pure Nothing
@@ -153,6 +152,8 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
 
         pure $ directLightContrib .+. (coefIndirect .*. contribIndirect) .+. (if lastWasSpecular then emission else C 0 0 0)
 
+-- | @sameSide n a b@ returns 'True' if @a@ and @b@ are on the same side of the
+-- normal @n@.
 sameSide :: V3 ('Direction k) -> V3 ('Direction k'1) -> V3 ('Direction k'2) -> Bool
 sameSide n v0 v1 = (dot n v0 * dot n v1) > 0
 
@@ -214,7 +215,11 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
 raytraceImage :: FilePath -> IO ()
 raytraceImage path = writePng path =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace x y))
 
-withImageParallel :: Int -> Int -> (Int -> Int -> PixelRGBA8) -> IO (Image PixelRGBA8)
+-- | Render an image in parallel
+withImageParallel :: Int -- ^ Width
+  -> Int -- ^ Height
+  -> (Int -> Int -> PixelRGBA8) -- ^ @f x y@ returns the value for this pixel.
+  -> IO (Image PixelRGBA8)
 withImageParallel w h f = do
   im <- newMutableImage w h
 
@@ -224,6 +229,7 @@ withImageParallel w h f = do
 
   unsafeFreezeImage im
 
+-- | Splits a list in a few chunks
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf n l = take n l : chunksOf n (drop n l)

@@ -5,10 +5,12 @@
 module Streamray.Sampling
   ( sampleCosinus,
     rotateVector,
+    uniformF,
   )
 where
 
 import Streamray.Linear
+import System.Random.Stateful
 
 -- | Sampling proportional to cosinus weighted on hemisphere
 -- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
@@ -49,9 +51,16 @@ makeBase (N x y z) = (baseX, baseY)
     baseY = unsafeNormalized $ D b (sign + y * y * a) (- y)
 
 -- | Rotate a vector around a normal
-rotateVector :: V3 ('Direction 'Normalized) -- ^ Normal
-  -> V3 ('Direction 'Normalized) -- ^ Vector
-  -> V3 ('Direction 'Normalized)
+rotateVector ::
+  -- | Normal
+  V3 ('Direction 'Normalized) ->
+  -- | Vector
+  V3 ('Direction 'Normalized) ->
+  V3 ('Direction 'Normalized)
 rotateVector normal (N x y z) =
   let (baseX, baseY) = makeBase normal
    in unsafeNormalized (x .*. baseX .+. y .*. baseY .+. z .*. normal)
+
+-- | Uniform sampling of a random number in [0, 1]
+uniformF :: StatefulGen g m => g -> m Float
+uniformF = uniformRM (0, 1)

@@ -1,40 +1,20 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DataKinds #-}
+
+-- | This module contains everything needed to intersect ray with primitives.
 module Streamray.Intersect where
 
 import Streamray.Linear
 import Streamray.Ray
 import Data.List (sortOn, foldl')
 
+-- | Represents an intersection
 data Intersection = Intersection Object {-# UNPACK #-} !Float
 
-data Box = Box (V3 'Position) (V3 'Position)
-  deriving (Show)
+-- * BVH Internals
 
-instance Semigroup Box where
-  Box pMin pMax <> Box pMin' pMax' =
-    Box (minP pMin pMin') (maxP pMax pMax')
-    where
-      minP (P x y z) (P x' y' z') = P (min x x') (min y y') (min z z')
-      maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
-
-data Axis = X | Y | Z
-  deriving (Show)
-
-boxBiggestAxis :: Box -> Axis
-boxBiggestAxis (Box pMin pMax)
-  | x >= y && x >= z = X
-  | y >= z = Y
-  | otherwise = Z
-  where
-    D x y z = pMin --> pMax
-
-data BVH
-  = BVHNode Box Box BVH BVH
-  | BVHLeaf Object
-  deriving (Show)
-
+-- | Build a BVH from a list of Objects
 buildBVH :: [Object] -> BVH
 buildBVH [] = error "it should not happen"
 buildBVH [x] = BVHLeaf x
@@ -59,12 +39,9 @@ buildBVH l = BVHNode boxA boxB subA subB
     subA = buildBVH lA
     subB = buildBVH lB
 
-makeBox :: [Object] -> Box
-makeBox [] = error "it should not happen 2"
-makeBox (Object _ sphere : xs) = foldl' f (sphereToBox sphere) xs
-  where
-    f box (Object _ sphere') = box <> sphereToBox sphere'
+-- * First intersection
 
+-- | Returns the first intersection (if any) of a ray with a BVH
 rayIntersectBVH :: Ray -> BVH -> Maybe Intersection
 rayIntersectBVH ray bvh = go bvh Nothing
   where
@@ -94,6 +71,22 @@ rayIntersectBVH ray bvh = go bvh Nothing
                 | tBoxA <= tBoxB = (subTreeA, subTreeB, tBoxA, tBoxB)
                 | otherwise = (subTreeB, subTreeA, tBoxB, tBoxA)
            in continue secondT secondTree (continue firstT firstTree currentIt)
+
+{-# DEPRECATED rayIntersectObjets "Use rayIntersectBVH" #-}
+
+-- | Returns the first intersection (if any) of a ray with a bunch of objets
+rayIntersectObjets :: Ray -> [Object] -> Maybe Intersection
+rayIntersectObjets ray = foldl' f Nothing
+  where
+    f Nothing obj@(Object _ sphere) = Intersection obj <$> rayIntersectSphere ray sphere
+    f res@(Just (Intersection _ t)) obj'@(Object _ sphere) = case rayIntersectSphere ray sphere of
+      Nothing -> res
+      Just t'
+        | t' < t -> Just (Intersection obj' t')
+        | otherwise -> res
+
+
+-- * Box
 
 {-# INLINE rayIntersectBox #-}
 
@@ -132,7 +125,9 @@ rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pm
     tmin'' = max tmin' $ min tz1 tz2
     tmax'' = min tmax' $ max tz1 tz2
 
--- | Test visibility with early exit
+-- * Visibility
+
+-- | Test visibility with early exit for BVH
 testRayVisibilityBVH :: Ray -> BVH -> Float -> Bool
 testRayVisibilityBVH ray (BVHLeaf (Object _ sphere)) distance2 = case rayIntersectSphere ray sphere of
   Nothing -> True
@@ -150,6 +145,8 @@ testRayVisibilityBVH ray (BVHNode boxA boxB subTreeA subTreeB) distance2 = visib
     visibleA = not itBoxA || testRayVisibilityBVH ray subTreeA distance2
     visibleB = not itBoxB || testRayVisibilityBVH ray subTreeB distance2
 
+{-# DEPRECATED testRayVisibility "Use testRayVisibilityBVH" #-}
+
 -- | Test visibility with early exit
 testRayVisibility :: Ray -> [Object] -> Float -> Bool
 testRayVisibility ray objects distance2 = go objects
@@ -161,24 +158,9 @@ testRayVisibility ray objects distance2 = go objects
         | t * t < distance2 -> False
         | otherwise -> go xs
 
--- | Returns the first intersection (if any) of a ray with a bunch of objets
-rayIntersectObjets :: Ray -> [Object] -> Maybe Intersection
-rayIntersectObjets ray = foldl' f Nothing
-  where
-    f Nothing obj@(Object _ sphere) = Intersection obj <$> rayIntersectSphere ray sphere
-    f res@(Just (Intersection _ t)) obj'@(Object _ sphere) = case rayIntersectSphere ray sphere of
-      Nothing -> res
-      Just t'
-        | t' < t -> Just (Intersection obj' t')
-        | otherwise -> res
-
-sphereToBox :: Sphere -> Box
-sphereToBox (Sphere center radius) = Box (center .+. flipDirection dRadius) (center .+. dRadius)
-  where
-    dRadius = D radius radius radius
+-- * Sphere
 
 {-# INLINE rayIntersectSphere #-}
-
 -- | Intersection between an object and sphere
 rayIntersectSphere :: Ray -> Sphere -> Maybe Float
 rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =

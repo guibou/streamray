@@ -11,6 +11,8 @@ import Streamray.Intersect
 import Data.Maybe (mapMaybe)
 
 -- TODO: it should be vector instead of list
+
+-- | This is a scene
 data Scene = Scene
   { objects :: BVH,
     lights :: [Light]

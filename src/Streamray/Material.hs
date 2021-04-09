@@ -24,16 +24,6 @@ data Material = Material
   deriving (Show)
 
 -- | Compute the reflexion vector
-reflect ::
-  -- | Normal
-  V3 ('Direction 'Normalized) ->
-  -- | Incoming direction (facing surface)
-  V3 ('Direction 'Normalized) ->
-  -- | Outgoing reflected direction
-  V3 ('Direction 'Normalized)
-reflect n wi = normalize ((-2 * dot n wi) .*. n .+. wi)
-
--- TODO: normalize is useless
 --       /
 --      /
 --     /
@@ -55,8 +45,16 @@ reflect n wi = normalize ((-2 * dot n wi) .*. n .+. wi)
 --
 -- >>> which is equal to the projection of wi to n
 -- f = -2 * dot n wi
+reflect ::
+  -- | Normal
+  V3 ('Direction 'Normalized) ->
+  -- | Incoming direction (facing surface)
+  V3 ('Direction 'Normalized) ->
+  -- | Outgoing reflected direction
+  V3 ('Direction 'Normalized)
+reflect n wi = unsafeNormalized ((-2 * dot n wi) .*. n .+. wi)
 
--- Compute the refraction vector
+-- | Compute the refraction vector
 refract ::
   -- | IOR (ratio of inside IOR to outside IOR)
   Float ->
