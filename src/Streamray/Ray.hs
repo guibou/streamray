@@ -102,6 +102,7 @@ rayIntersectBVH ray (BVHNode box subTreeA subTreeB) =
 -- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
 
 {-# INLINE rayIntersectBox #-}
+
 -- | return 'True' if 'Ray' intersects 'Box'
 rayIntersectBox :: Ray -> Box -> Maybe Float
 rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pmaxx pmaxy pmaxz))
@@ -137,9 +138,18 @@ rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pm
 
 -- | Test visibility with early exit
 testRayVisibilityBVH :: Ray -> BVH -> Float -> Bool
-testRayVisibilityBVH ray bvh distance2 = case rayIntersectBVH ray bvh of
+testRayVisibilityBVH ray (BVHLeaf (Object _ sphere)) distance2 = case rayIntersectSphere ray sphere of
   Nothing -> True
-  Just (Intersection _ t) -> t * t >= distance2
+  Just t -> t * t >= distance2
+testRayVisibilityBVH ray (BVHNode box subTreeA subTreeB) distance2
+  | not itBox = True
+  | otherwise = visibleA && visibleB
+  where
+    itBox = case rayIntersectBox ray box of
+      Nothing -> False
+      Just _ -> True
+    visibleA = testRayVisibilityBVH ray subTreeA distance2
+    visibleB = testRayVisibilityBVH ray subTreeB distance2
 
 -- | Test visibility with early exit
 testRayVisibility :: Ray -> [Object] -> Float -> Bool
@@ -235,7 +245,7 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
       t0 = b - sqrtDelta
       t1 = b + sqrtDelta
    in if
-         -- TODO: check if removing this test is good for performances
+          -- TODO: check if removing this test is good for performances
           | delta < 0 -> Nothing -- No solution, the ray missed the sphere
           | t0 >= 0 -> Just t0 -- t0 solution is the smallest (by construction), and is positive. The ray hit the front of the sphere.
           | t1 >= 0 -> Just t1 -- t1 solution is the smallest positive. The ray started inside the sphere and exits it.
