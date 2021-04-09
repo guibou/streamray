@@ -18,17 +18,20 @@ import Control.Concurrent.Async
 import Control.Monad (replicateM)
 import Data.Foldable
 import Data.Maybe
+import Streamray.Intersect
+import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
+import Streamray.RenderSettings
 import Streamray.Sampling
 import Streamray.Scene
-import Streamray.Light
 import System.Random.Stateful
-import Streamray.Intersect
 
 -- | Compute the direct lighting for a diffuse material
-directLighting :: StatefulGen g m =>
+directLighting ::
+  StatefulGen g m =>
+  Scene ->
   -- | Position of the lighting
   V3 'Position ->
   -- | Surface normal (object must be on the positive side of the normal)
@@ -37,10 +40,10 @@ directLighting :: StatefulGen g m =>
   Light ->
   g ->
   m (V3 'Color)
-directLighting x normal light g = do
+directLighting scene x normal light g = do
   (directionToLight, coefNormLight) <- case Streamray.Light.behavior light of
     PointLight p -> pure (x --> p, 1)
-    SphereLight Sphere{radius, center} -> do
+    SphereLight Sphere {radius, center} -> do
       -- Indirect lighting
       uv <- uniform2F g
 
@@ -81,21 +84,21 @@ directLighting x normal light g = do
   pure $ coefNormLight .*. visibility .*. Streamray.Light.emission light .*. coef
 
 -- | Returns the pixel color associated with a 'Ray'. It performs russian rulette.
-radiance :: StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-radiance _ 5 _ _ = pure $ Just (C 0 0 0)
-radiance lastWasSpecular depth ray g = do
+radiance :: StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
+radiance _ _ 5 _ _ = pure $ Just (C 0 0 0)
+radiance scene lastWasSpecular depth ray g = do
   r <- uniformF g
 
   let coefRR = if depth == 0 then 1 else 0.5
 
   if r < coefRR
-    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance lastWasSpecular depth ray g
+    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance scene lastWasSpecular depth ray g
     else pure $ Just (C 0 0 0)
 
 -- | Returns the pixel color associated with a 'Ray'. This is the same as
 -- 'radiance', but it does not perform russian rulette.
-subRadiance :: forall g m. StatefulGen g m => Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scene) of
+subRadiance :: forall g m. StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
+subRadiance scene lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scene) of
   Nothing -> pure Nothing
   Just (Intersection (Object (Material albedo behavior emission) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray
@@ -106,7 +109,7 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
         mirrorContribution = do
           let reflectedDirection = reflect normal (direction ray)
               reflectedRay = Ray (x .+. epsilon .*. reflectedDirection) reflectedDirection
-          contrib <- radiance True (depth + 1) reflectedRay g
+          contrib <- radiance scene True (depth + 1) reflectedRay g
           pure $ fromMaybe (C 0 0 0) contrib
 
     Just . (albedo .*.) <$> case behavior of
@@ -125,7 +128,7 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
               then do
                 -- This choice was picked with PDF = coef, and is weighted by coef (the transmission factor). Both cancels
                 let transmittedRay = Ray (x .+. (epsilon * 3) .*. transmittedDirection) transmittedDirection
-                fromMaybe (C 0 0 0) <$> radiance True (depth + 1) transmittedRay g
+                fromMaybe (C 0 0 0) <$> radiance scene True (depth + 1) transmittedRay g
               else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
                 mirrorContribution
       Mirror -> mirrorContribution
@@ -133,7 +136,7 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
         -- Sample uniformly one light
         -- TODO: we would like to do that by importance
         lu <- uniformRM (0, length (lights scene) - 1) g
-        directLightContrib' <- directLighting x normal (lights scene !! lu) g
+        directLightContrib' <- directLighting scene x normal (lights scene !! lu) g
         let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLightContrib'
 
         -- Indirect lighting
@@ -146,7 +149,7 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
             coefIndirect :: Float = 1
             indirectRay = Ray (x .+. epsilon .*. indirectDirection) indirectDirection
 
-        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance False (depth + 1) indirectRay g
+        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance scene False (depth + 1) indirectRay g
 
         pure $ directLightContrib .+. (coefIndirect .*. contribIndirect) .+. (if lastWasSpecular then emission else C 0 0 0)
 
@@ -185,9 +188,8 @@ ftonemap = truncateWord8 . gammaCorrect
 
 -- | Raytrace a 500x500 image
 -- This function is called for each pixel
-raytrace :: forall g m. StatefulGen g m => Int -> Int -> g -> m PixelRGBA8
-raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
-  let nSamples = 10
+raytrace :: forall g m. StatefulGen g m => Int -> Scene -> Int -> Int -> g -> m PixelRGBA8
+raytrace nSamples scene (fromIntegral -> x) (fromIntegral -> y) g = do
   -- Oversample the pixel
   rs <- replicateM nSamples runRay
 
@@ -215,17 +217,23 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
 
           d = normalize (n' --> f)
           ray = Ray n d
-      radiance True 0 ray g
+      radiance scene True 0 ray g
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
-raytraceImage :: FilePath -> IO ()
-raytraceImage path = writePng path =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace x y))
+raytraceImage :: RenderSettings -> IO ()
+raytraceImage renderSettings = writePng (filepath renderSettings) =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace (samplesPerPixel renderSettings) scene x y))
+  where
+    scene = loadKnownScene renderSettings
 
 -- | Render an image in parallel
-withImageParallel :: Int -- ^ Width
-  -> Int -- ^ Height
-  -> (Int -> Int -> PixelRGBA8) -- ^ @f x y@ returns the value for this pixel.
-  -> IO (Image PixelRGBA8)
+withImageParallel ::
+  -- | Width
+  Int ->
+  -- | Height
+  Int ->
+  -- | @f x y@ returns the value for this pixel.
+  (Int -> Int -> PixelRGBA8) ->
+  IO (Image PixelRGBA8)
 withImageParallel w h f = do
   im <- newMutableImage w h
 

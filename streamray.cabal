@@ -29,11 +29,14 @@ library
                    , Streamray.Material
                    , Streamray.Ray
                    , Streamray.Scene
+                   , Streamray.Scene.Cornel
+                   , Streamray.RenderSettings
+                   , Streamray.Scene.ManySpheres
                    , Streamray.Sampling
                    , Streamray.Light
                    , Streamray.Intersect
     default-language: Haskell2010
-    ghc-options: -Wall -haddock -fwarn-incomplete-uni-patterns -Wunused-packages
+    ghc-options: -Wall -haddock -fwarn-incomplete-uni-patterns -Wunused-packages -Wno-name-shadowing
 
 test-suite unit
   type:                exitcode-stdio-1.0
@@ -51,7 +54,7 @@ executable streamray
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.14.1.0, JuicyPixels, streamray
+    build-depends:    base ^>=4.14.1.0, streamray, optparse-applicative
     hs-source-dirs:   app
     default-language: Haskell2010
     ghc-options: -Wall -haddock -rtsopts -threaded
