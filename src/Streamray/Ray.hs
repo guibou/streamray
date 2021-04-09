@@ -85,30 +85,35 @@ makeBox (Object _ sphere : xs) = foldl' f (sphereToBox sphere) xs
     f box (Object _ sphere') = box <> sphereToBox sphere'
 
 rayIntersectBVH :: Ray -> BVH -> Maybe Intersection
-rayIntersectBVH ray (BVHLeaf o@(Object _ sphere)) = Intersection o <$> rayIntersectSphere ray sphere
-rayIntersectBVH ray (BVHNode box subTreeA subTreeB) =
-  case rayIntersectBox ray box of
-    Nothing -> Nothing
-    Just _ ->
-      let itA = rayIntersectBVH ray subTreeA
-          itB = rayIntersectBVH ray subTreeB
-       in case (itA, itB) of
-            (Nothing, b) -> b
-            (a, Nothing) -> a
-            (a@(Just (Intersection _ t)), b@(Just (Intersection _ t')))
-              | t < t' -> a
-              | otherwise -> b
-
--- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
+rayIntersectBVH ray bvh = go bvh Nothing
+  where
+    go (BVHLeaf o@(Object _ sphere)) currentIt = case rayIntersectSphere ray sphere of
+      Nothing -> currentIt
+      Just t' -> case currentIt of
+        Nothing -> Just $ Intersection o t'
+        Just (Intersection _ t)
+          | t' < t -> Just $ Intersection o t'
+          | otherwise -> currentIt
+    go (BVHNode box subTreeA subTreeB) currentIt = case rayIntersectBox ray box of
+      Nothing -> currentIt
+      Just tBox ->
+        let currentItIsCloser = case currentIt of
+              Nothing -> False
+              Just (Intersection _ tCurrent) -> tCurrent < tBox
+         in if currentItIsCloser
+              then currentIt
+              else go subTreeB (go subTreeA currentIt)
 
 {-# INLINE rayIntersectBox #-}
+
+-- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
 
 -- | return 'True' if 'Ray' intersects 'Box'
 rayIntersectBox :: Ray -> Box -> Maybe Float
 rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pmaxx pmaxy pmaxz))
   | tmax'' < tmin'' = Nothing
   | tmin'' >= 0 = Just tmin''
-  | tmax'' >= 0 = Just tmax''
+  | tmax'' >= 0 = Just 0
   | otherwise = Nothing
   where
     rinvx = 1 / dx
