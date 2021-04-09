@@ -54,14 +54,14 @@ boxBiggestAxis (Box pMin pMax)
     D x y z = pMin --> pMax
 
 data BVH
-  = BVHNode Box BVH BVH
+  = BVHNode Box Box BVH BVH
   | BVHLeaf Object
   deriving (Show)
 
 buildBVH :: [Object] -> BVH
 buildBVH [] = error "it should not happen"
 buildBVH [x] = BVHLeaf x
-buildBVH l = BVHNode box subA subB
+buildBVH l = BVHNode boxA boxB subA subB
   where
     box = makeBox l
     axis = boxBiggestAxis box
@@ -75,8 +75,12 @@ buildBVH l = BVHNode box subA subB
 
     len = length l'
 
-    subA = buildBVH (take (len `div` 2) l')
-    subB = buildBVH (drop (len `div` 2) l')
+    (lA, lB) = splitAt (len `div` 2) l'
+    boxA = makeBox lA
+    boxB = makeBox lB
+
+    subA = buildBVH lA
+    subB = buildBVH lB
 
 makeBox :: [Object] -> Box
 makeBox [] = error "it should not happen 2"
@@ -94,15 +98,25 @@ rayIntersectBVH ray bvh = go bvh Nothing
         Just (Intersection _ t)
           | t' < t -> Just $ Intersection o t'
           | otherwise -> currentIt
-    go (BVHNode box subTreeA subTreeB) currentIt = case rayIntersectBox ray box of
-      Nothing -> currentIt
-      Just tBox ->
-        let currentItIsCloser = case currentIt of
-              Nothing -> False
-              Just (Intersection _ tCurrent) -> tCurrent < tBox
-         in if currentItIsCloser
-              then currentIt
-              else go subTreeB (go subTreeA currentIt)
+    go (BVHNode boxA boxB subTreeA subTreeB) currentIt = do
+        -- Continue walking the subtree only if the box intersection is closer
+        -- than the current intersection.
+      let continue tBox sub currentIt' =
+            let currentItIsCloser = case currentIt' of
+                  Nothing -> False
+                  Just (Intersection _ tCurrent) -> tCurrent <= tBox
+             in if currentItIsCloser
+                  then currentIt'
+                  else go sub currentIt'
+      case (rayIntersectBox ray boxA, rayIntersectBox ray boxB) of
+        (Nothing, Nothing) -> currentIt
+        (Just tBoxA, Nothing) -> continue tBoxA subTreeA currentIt
+        (Nothing, Just tBoxB) -> continue tBoxB subTreeB currentIt
+        (Just tBoxA, Just tBoxB) ->
+          let (firstTree, secondTree, firstT, secondT)
+                | tBoxA <= tBoxB = (subTreeA, subTreeB, tBoxA, tBoxB)
+                | otherwise = (subTreeB, subTreeA, tBoxB, tBoxA)
+           in continue secondT secondTree (continue firstT firstTree currentIt)
 
 {-# INLINE rayIntersectBox #-}
 
@@ -146,15 +160,18 @@ testRayVisibilityBVH :: Ray -> BVH -> Float -> Bool
 testRayVisibilityBVH ray (BVHLeaf (Object _ sphere)) distance2 = case rayIntersectSphere ray sphere of
   Nothing -> True
   Just t -> t * t >= distance2
-testRayVisibilityBVH ray (BVHNode box subTreeA subTreeB) distance2
-  | not itBox = True
-  | otherwise = visibleA && visibleB
+testRayVisibilityBVH ray (BVHNode boxA boxB subTreeA subTreeB) distance2 = visibleA && visibleB
   where
-    itBox = case rayIntersectBox ray box of
+    itBoxA = case rayIntersectBox ray boxA of
       Nothing -> False
       Just _ -> True
-    visibleA = testRayVisibilityBVH ray subTreeA distance2
-    visibleB = testRayVisibilityBVH ray subTreeB distance2
+
+    itBoxB = case rayIntersectBox ray boxB of
+      Nothing -> False
+      Just _ -> True
+
+    visibleA = not itBoxA || testRayVisibilityBVH ray subTreeA distance2
+    visibleB = not itBoxB || testRayVisibilityBVH ray subTreeB distance2
 
 -- | Test visibility with early exit
 testRayVisibility :: Ray -> [Object] -> Float -> Bool
