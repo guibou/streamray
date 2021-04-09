@@ -152,7 +152,7 @@ subRadiance lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scen
 
 -- | @sameSide n a b@ returns 'True' if @a@ and @b@ are on the same side of the
 -- normal @n@.
-sameSide :: V3 ('Direction k) -> V3 ('Direction k'1) -> V3 ('Direction k'2) -> Bool
+sameSide :: V3 ('Direction 'Normalized) -> V3 ('Direction 'Normalized) -> V3 ('Direction 'Normalized) -> Bool
 sameSide n v0 v1 = (dot n v0 * dot n v1) > 0
 
 -- | Changes the ray offset used to escape surface
@@ -210,7 +210,7 @@ raytrace (fromIntegral -> x) (fromIntegral -> y) g = do
           n = P (x + dx) (y + dy) 0
 
           -- n' is on the plane [-250:250]
-          n'@(P x' y' 0) = n .-. D 250 250 0
+          n'@(P x' y' _) = n .-. D 250 250 0
           f = P (coefOpening * x') (coefOpening * y') 1
 
           d = normalize (n' --> f)
