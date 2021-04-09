@@ -14,7 +14,7 @@
     "LICENSE"
   ];
 
-  shell = (app.envFunc { withHoogle = true; }).overrideAttrs (old: {
+  shell = (app.envFunc { withHoogle = false; }).overrideAttrs (old: {
     # The Haskell environment does not come with cabal-install
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.cabal-install ];
   });
@@ -29,10 +29,10 @@
     overrides = self: super: {
       # used for asset loading
       wavefront = pkgs.haskell.lib.doJailbreak super.wavefront;
-      linear =
-        pkgs.haskell.lib.appendBuildFlag super.linear "--ghc-options=-haddock";
-      JuicyPixels = pkgs.haskell.lib.appendBuildFlag super.JuicyPixels
-        "--ghc-options=-haddock";
+      # linear =
+      #   pkgs.haskell.lib.appendBuildFlag super.linear "--ghc-options=-haddock";
+      # JuicyPixels = pkgs.haskell.lib.appendBuildFlag super.JuicyPixels
+      #   "--ghc-options=-haddock";
     };
   };
 
