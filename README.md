@@ -4,6 +4,16 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #9
+=========
+
+We worked on performance of the `BHV` implementation, with the following highlights:
+
+- Early exit in the visibility test
+- We do not go inside a `BVH` `Box` if we did already find an intersection
+  which is closer than the entry of the box.
+- We go inside `BVH` `Box` in ray order.
+
 Stream #8
 =========
 
