@@ -51,7 +51,7 @@ boxBiggestAxis (Box pMin pMax)
   | y >= z = Y
   | otherwise = Z
   where
-    UnsafeV3 x y z = pMin --> pMax
+    D x y z = pMin --> pMax
 
 data BVH
   = BVHNode Box BVH BVH
@@ -68,7 +68,7 @@ buildBVH l = BVHNode box subA subB
 
     l' = sortOn fSort l
 
-    fSort (Object _ (Sphere (UnsafeV3 x y z) _)) = case axis of
+    fSort (Object _ (Sphere (P x y z) _)) = case axis of
       X -> x
       Y -> y
       Z -> z
@@ -104,7 +104,7 @@ rayIntersectBVH ray (BVHNode box subTreeA subTreeB) =
 {-# INLINE rayIntersectBox #-}
 -- | return 'True' if 'Ray' intersects 'Box'
 rayIntersectBox :: Ray -> Box -> Maybe Float
-rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (UnsafeV3 pminx pminy pminz) (UnsafeV3 pmaxx pmaxy pmaxz))
+rayIntersectBox (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) (P pmaxx pmaxy pmaxz))
   | tmax'' < tmin'' = Nothing
   | tmin'' >= 0 = Just tmin''
   | tmax'' >= 0 = Just tmax''

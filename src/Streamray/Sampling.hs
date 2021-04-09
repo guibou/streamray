@@ -36,22 +36,22 @@ sampleCosinus u v =
 -- | Basis rotation, based on http://jcgt.org/published/0006/01/01/ Building an Orthonormal Basis, Revisited
 makeBase ::
   -- | Normal (Z of the basis)
-  V3 t ->
+  V3 ('Direction 'Normalized) ->
   -- | (baseX, baseY)
-  (V3 t, V3 t)
-makeBase (UnsafeV3 x y z) = (baseX, baseY)
+  (V3 ('Direction 'Normalized), V3 ('Direction 'Normalized))
+makeBase (N x y z) = (baseX, baseY)
   where
     sign = signum z
     a = -1.0 / (sign + z)
     b = x * y * a
 
-    baseX = UnsafeV3 (1 + sign * x * x * a) (sign * b) (- sign * x)
-    baseY = UnsafeV3 b (sign + y * y * a) (- y)
+    baseX = unsafeNormalized $ D (1 + sign * x * x * a) (sign * b) (- sign * x)
+    baseY = unsafeNormalized $ D b (sign + y * y * a) (- y)
 
 -- | Rotate a vector around a normal
 rotateVector :: V3 ('Direction 'Normalized) -- ^ Normal
   -> V3 ('Direction 'Normalized) -- ^ Vector
   -> V3 ('Direction 'Normalized)
-rotateVector normal (UnsafeV3 x y z) =
+rotateVector normal (N x y z) =
   let (baseX, baseY) = makeBase normal
    in unsafeNormalized (x .*. baseX .+. y .*. baseY .+. z .*. normal)
