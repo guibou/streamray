@@ -22,6 +22,8 @@
 --   in not normalized 'Direction'.
 --
 --   In also reexport functions from Linear with the safe types.
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Streamray.Linear
   ( -- * Types
     V3,
@@ -53,6 +55,8 @@ where
 
 import Control.Exception (assert)
 import Data.Coerce
+import Control.DeepSeq
+import GHC.Generics
 
 -- | Represents whether a direction is normalized or not
 data DirectionKind = Normalized | NotNormalized
@@ -69,7 +73,7 @@ data Space
 
 -- | This is a point in 3D associated with a space
 data V3 (k :: Space) = V3 {-# UNPACK #-} !Float {-# UNPACK #-} !Float {-# UNPACK #-} !Float
-  deriving (Show, Eq)
+  deriving (Show, Eq, NFData, Generic)
 
 -- * Add
 

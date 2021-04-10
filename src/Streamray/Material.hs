@@ -1,9 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 
 -- | This module represents material, i.e. surface behaviors
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Streamray.Material where
 
 import Streamray.Linear
+import Control.DeepSeq
+import GHC.Generics
 
 -- | How the surface behaves with light.
 data MaterialBehavior
@@ -13,7 +17,7 @@ data MaterialBehavior
     Glass Float
   | -- | A mirror material, not used yet
     Mirror
-  deriving (Show)
+  deriving (Show, NFData, Generic)
 
 -- | Material, with albedo and behavior
 data Material = Material
@@ -21,7 +25,7 @@ data Material = Material
     behavior :: MaterialBehavior,
     emission :: V3 'Color
   }
-  deriving (Show)
+  deriving (Show, NFData, Generic)
 
 -- | Compute the reflexion vector
 --       /

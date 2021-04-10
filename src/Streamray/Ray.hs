@@ -7,11 +7,15 @@
 {-# LANGUAGE ViewPatterns #-}
 
 -- | This is the home for all the ray tracing primitives.
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Streamray.Ray where
 
 import Data.Foldable (foldl')
 import Streamray.Linear
 import Streamray.Material
+import Control.DeepSeq
+import GHC.Generics
 
 -- | This is a ray
 -- Any point X on the ray can be represented using X = Origin + t * Direction.
@@ -26,17 +30,17 @@ data Sphere = Sphere
   { center :: V3 'Position,
     radius :: Float
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, NFData, Generic)
 
 -- | Represents a object, with its shape and material
 data Object = Object Material Sphere
-  deriving (Show)
+  deriving (Show, NFData, Generic)
 
 -- | Bounding volume hierarchy
 data BVH
   = BVHNode Box Box BVH BVH
   | BVHLeaf Object
-  deriving (Show)
+  deriving (Show, NFData, Generic)
 
 -- * Box
 
@@ -44,7 +48,7 @@ data BVH
 
 -- | Represents a box aligned with axis
 data Box = Box (V3 'Position) (V3 'Position)
-  deriving (Show, Eq)
+  deriving (Show, Eq, NFData, Generic)
 
 -- | An Axis
 data Axis = X | Y | Z

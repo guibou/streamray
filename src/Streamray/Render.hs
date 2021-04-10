@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 -- | This is the core of the rendering algorithm, with the main raytrace
 -- "integrator", called 'radiance', as well as a naive camera model and image
@@ -27,6 +28,12 @@ import Streamray.RenderSettings
 import Streamray.Sampling
 import Streamray.Scene
 import System.Random.Stateful
+import Control.Exception (evaluate)
+import Control.DeepSeq
+import Data.Time (getCurrentTime, diffUTCTime)
+import PyF
+import Data.Time.Clock (NominalDiffTime)
+import GHC.Stats
 
 -- | Compute the direct lighting for a diffuse material
 directLighting ::
@@ -221,7 +228,20 @@ raytrace nSamples scene (fromIntegral -> x) (fromIntegral -> y) g = do
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: RenderSettings -> IO ()
-raytraceImage renderSettings = writePng (filepath renderSettings) =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace (samplesPerPixel renderSettings) scene x y))
+raytraceImage renderSettings = do
+    t <- getCurrentTime
+    scene' <- evaluate $ force scene
+    t' <- getCurrentTime
+    let bvhTime = t' `diffUTCTime` t
+    putStrLn [fmt|BVH time: {bvhTime:s}|]
+    writePng (filepath renderSettings) =<< withImageParallel 500 500 (\x y -> runStateGen_ (mkStdGen ((x + 1) * (y + 1))) (raytrace (samplesPerPixel renderSettings) scene' x y))
+    t'' <- getCurrentTime
+    let totalTime = t'' `diffUTCTime` t
+    let renderTime = t'' `diffUTCTime` t'
+    putStrLn [fmt|Rendering time: {renderTime:s} {realToFrac @NominalDiffTime @Double $ renderTime / totalTime:.0%}|]
+    putStrLn [fmt|Total time: {t'' `diffUTCTime` t:s}|]
+    rtsStats <- getRTSStats
+    putStrLn [fmt|Max memory usage: {max_mem_in_use_bytes rtsStats `div` 1000 `div` 1000: d} MiB|]
   where
     scene = loadKnownScene renderSettings
 
