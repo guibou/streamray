@@ -1,19 +1,20 @@
 {-# LANGUAGE DataKinds #-}
-
--- | Represents a static scene, a cornel box with one light
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+
+-- | Represents a static scene, a cornel box with one light
 module Streamray.Scene where
 
-import Streamray.Ray
-import Streamray.Light
-import Streamray.Intersect
-import Data.Vector (Vector)
 import Control.DeepSeq
+import Data.Vector (Vector)
 import GHC.Generics
+import Streamray.Intersect
+import Streamray.Light
+import Streamray.Ray
 
 -- TODO: it should be vector instead of list
+
 -- | This is a scene
 data Scene = Scene
   { objects :: !(BVH (Object (BVH Sphere))),

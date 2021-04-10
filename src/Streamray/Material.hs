@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
-
--- | This module represents material, i.e. surface behaviors
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+
+-- | This module represents material, i.e. surface behaviors
 module Streamray.Material where
 
-import Streamray.Linear
 import Control.DeepSeq
 import GHC.Generics
+import Streamray.Linear
 
 -- | How the surface behaves with light.
 data MaterialBehavior

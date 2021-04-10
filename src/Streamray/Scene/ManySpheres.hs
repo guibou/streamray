@@ -1,12 +1,13 @@
 {-# LANGUAGE ViewPatterns #-}
+
 module Streamray.Scene.ManySpheres where
 
+import qualified Data.Vector as Vector
 import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
-import qualified Data.Vector as Vector
 
 white :: Material
 white = Material (C 1 1 1) Diffuse (C 0 0 0)

@@ -8,7 +8,7 @@ module Streamray.Sampling
     uniformF,
     uniform2F,
     makeBase,
-    Sample2D(..),
+    Sample2D (..),
   )
 where
 

@@ -20,4 +20,3 @@ data KnownScene
   = Cornel
   | ManySpheres Float
   deriving (Show, Read)
-

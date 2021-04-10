@@ -1,33 +1,33 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | This is the home for all the ray tracing primitives.
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeFamilies #-}
 module Streamray.Ray where
 
-import Data.Foldable (foldl', Foldable (toList))
+import Control.DeepSeq
+import Data.Foldable (Foldable (toList), foldl')
+import Data.Vector (Vector)
+import GHC.Generics
 import Streamray.Linear
 import Streamray.Material
-import Data.Vector (Vector)
-import Control.DeepSeq
-import GHC.Generics
 
 -- | This is a ray
 -- Any point X on the ray can be represented using X = Origin + t * Direction.
@@ -100,7 +100,7 @@ instance (HasBoundingBox t) => HasBoundingBox (Vector t) where
 makeBox :: Foldable f => HasBoundingBox t => f t -> Box
 makeBox l = foldl' f (toBox x) xs
   where
-    (x:xs) = toList l
+    (x : xs) = toList l
     f box x = box <> toBox x
 
 class HasBoundingBox t where

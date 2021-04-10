@@ -47,6 +47,7 @@
   formatting-fix = pkgs.mkShell {
     nativeBuildInputs = [ pkgs.haskellPackages.ormolu ];
     shellHook = ''
+      shopt -s globstar
       ormolu --mode inplace **/*.hs
       exit 0
     '';

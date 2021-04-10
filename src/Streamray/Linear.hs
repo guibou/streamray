@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE KindSignatures #-}
@@ -22,8 +24,6 @@
 --   in not normalized 'Direction'.
 --
 --   In also reexport functions from Linear with the safe types.
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Streamray.Linear
   ( -- * Types
     V3,
@@ -53,9 +53,9 @@ module Streamray.Linear
   )
 where
 
+import Control.DeepSeq
 import Control.Exception (assert)
 import Data.Coerce
-import Control.DeepSeq
 import GHC.Generics
 
 -- | Represents whether a direction is normalized or not

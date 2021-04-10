@@ -290,6 +290,7 @@ type family IsObjectOrNot t where
 class Intersect t where
   -- | Returns the closest intersection
   rayIntersect :: Ray -> t -> Maybe (Intersection (IsObjectOrNot t))
+
   -- | Returns True if the ray is not occluded by the object between the origin
   -- and the squared distance
   testRayVisibility :: Ray -> t -> Float -> Bool

@@ -1,12 +1,13 @@
 {-# LANGUAGE PatternSynonyms #-}
+
 module Streamray.Scene.Cornel where
 
+import qualified Data.Vector as Vector
 import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
-import qualified Data.Vector as Vector
 
 -- | Initial scene. It is a box built with (big) spheres for the walls. Change
 -- 'sphereRadius' in order to flatten the walls.
