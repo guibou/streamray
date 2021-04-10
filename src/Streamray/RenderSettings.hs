@@ -18,6 +18,6 @@ loadKnownScene renderSettings = case knownScene renderSettings of
 
 data KnownScene
   = Cornel
-  | ManySpheres Int
+  | ManySpheres Float
   deriving (Show, Read)
 

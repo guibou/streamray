@@ -10,8 +10,8 @@ import Streamray.Scene
 white :: Material
 white = Material (C 1 1 1) Diffuse (C 0 0 0)
 
-manySpheres :: Int -> Scene
-manySpheres (fromIntegral -> dd) = mkScene objects lights
+manySpheres :: Float -> Scene
+manySpheres dd = mkScene objects lights
   where
     objects = do
       x <- [0, dd .. 500]
