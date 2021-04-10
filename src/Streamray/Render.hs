@@ -72,7 +72,7 @@ directLighting scene x normal light g = do
 
       -- Trace a ray toward the light source and check for intersection
       canSeeLightSource =
-        testRayVisibilityBVH
+        testRayVisibility
           ( Ray
               -- The origin of the ray is biased toward the light to avoid self
               -- shadows if the point is slightly under the surface due to
@@ -105,7 +105,7 @@ radiance scene lastWasSpecular depth ray g = do
 -- | Returns the pixel color associated with a 'Ray'. This is the same as
 -- 'radiance', but it does not perform russian rulette.
 subRadiance :: forall g m. StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-subRadiance scene lastWasSpecular depth ray g = case rayIntersectBVH ray (objects scene) of
+subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects scene) of
   Nothing -> pure Nothing
   Just (Intersection (Object (Material albedo behavior emission) sphere) t) -> do
     let x = origin ray .+. t .*. direction ray

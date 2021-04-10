@@ -8,6 +8,7 @@ module Streamray.Light where
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
+import Data.Foldable
 import Control.DeepSeq
 import GHC.Generics
 
@@ -27,7 +28,9 @@ data LightBehavior
   deriving (Show, Eq, NFData, Generic)
 
 -- | Converts an object with possibly an emission to a light.
-objectToLight :: Object -> Maybe Light
-objectToLight (Object (Material _ _ emit) o) = case emit of
-  C 0 0 0 -> Nothing
-  _ -> Just (Light (SphereLight o) emit)
+objectToLight :: Foldable f => Object (f Sphere) -> [Light]
+objectToLight (Object (Material _ _ emit) f) = case emit of
+  C 0 0 0 -> []
+  _ -> do
+       s <- toList f
+       pure $ Light (SphereLight s) emit

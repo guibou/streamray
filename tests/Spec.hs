@@ -57,7 +57,7 @@ main = hspec $ do
     it "union" $ do
       Box (P 0 0 0) (P 1 1 1) <> Box (P 2 3 1) (P 5 6 7) `shouldBe` Box (P 0 0 0) (P 5 6 7)
     it "fromSphere" $ do
-      sphereToBox (Sphere (P 1 2 3) 2) `shouldBe` Box (P (-1) 0 1) (P 3 4 5)
+      toBox (Sphere (P 1 2 3) 2) `shouldBe` Box (P (-1) 0 1) (P 3 4 5)
   describe "intersect" $ do
     describe "sphere" $ do
       it "in front" $ do
@@ -101,9 +101,9 @@ main = hspec $ do
         refract 3 (N 0 0 1) (N 0.9 0.9 0.1) `shouldBe` Nothing
   describe "object to light" $ do
     it "property: nothing on 0 emission" $ do
-      property $ \albedo center radius -> objectToLight (Object (Material albedo Diffuse (C 0 0 0)) (Sphere center radius)) `shouldBe` Nothing
+      property $ \albedo center radius -> objectToLight (Object (Material albedo Diffuse (C 0 0 0)) [Sphere center radius]) `shouldBe` []
     it "property: pass the sphere light otherwise" $ do
-      property $ \albedo center radius emission -> emission /= C 0 0 0 ==> objectToLight (Object (Material albedo Diffuse emission) (Sphere center radius)) `shouldBe` Just (Light (SphereLight $ Sphere center radius) emission)
+      property $ \albedo center radius emission -> emission /= C 0 0 0 ==> objectToLight (Object (Material albedo Diffuse emission) [Sphere center radius]) `shouldBe` [Light (SphereLight $ Sphere center radius) emission]
 
   describe "render" $ do
     it "property: sameside" $ do

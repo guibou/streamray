@@ -6,7 +6,6 @@ module Main where
 import Options.Applicative
 import Streamray.Render
 import Streamray.RenderSettings
-import Streamray.Scene
 
 configParser :: Parser RenderSettings
 configParser = do

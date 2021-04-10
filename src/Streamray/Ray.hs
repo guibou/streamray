@@ -1,19 +1,31 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | This is the home for all the ray tracing primitives.
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeFamilies #-}
 module Streamray.Ray where
 
-import Data.Foldable (foldl')
+import Data.Foldable (foldl', Foldable (toList))
 import Streamray.Linear
 import Streamray.Material
+import Data.Vector (Vector)
 import Control.DeepSeq
 import GHC.Generics
 
@@ -27,19 +39,19 @@ data Ray = Ray
 
 -- | This is a Sphere
 data Sphere = Sphere
-  { center :: V3 'Position,
-    radius :: Float
+  { center :: {-# UNPACK #-} !(V3 'Position),
+    radius :: {-# UNPACK #-} !Float
   }
   deriving (Show, Eq, NFData, Generic)
 
 -- | Represents a object, with its shape and material
-data Object = Object Material Sphere
-  deriving (Show, NFData, Generic)
+data Object t = Object Material t
+  deriving (Show, Foldable, NFData, Generic)
 
 -- | Bounding volume hierarchy
-data BVH
-  = BVHNode Box Box BVH BVH
-  | BVHLeaf Object
+data BVH t
+  = BVHNode Box Box (BVH t) (BVH t)
+  | BVHLeaf (Vector t)
   deriving (Show, NFData, Generic)
 
 -- * Box
@@ -47,12 +59,10 @@ data BVH
 --
 
 -- | Represents a box aligned with axis
-data Box = Box (V3 'Position) (V3 'Position)
+data Box = Box {-# UNPACK #-} !(V3 'Position) {-# UNPACK #-} !(V3 'Position)
   deriving (Show, Eq, NFData, Generic)
 
--- | An Axis
-data Axis = X | Y | Z
-  deriving (Show, Eq)
+data Axis = X | Y | Z deriving (Show, Eq)
 
 -- | Return the largest axis of a box
 boxBiggestAxis :: Box -> Axis
@@ -72,14 +82,31 @@ instance Semigroup Box where
       maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
 
 -- | Returns the bounding box of a sphere
-sphereToBox :: Sphere -> Box
-sphereToBox (Sphere center radius) = Box (center .+. flipDirection dRadius) (center .+. dRadius)
-  where
-    dRadius = D radius radius radius
+instance HasBoundingBox Sphere where
+  toBox (Sphere center radius) = Box (center .+. flipDirection dRadius) (center .+. dRadius)
+    where
+      dRadius = D radius radius radius
+
+instance (HasBoundingBox t) => HasBoundingBox (Object t) where
+  toBox = makeBox
+
+instance (HasBoundingBox t) => HasBoundingBox (Vector t) where
+  toBox = makeBox
+
+-- {-# INLINE makeBox #-}
+-- {-# SPECIALISE makeBox :: Vector Sphere -> Box #-}
 
 -- | Bounding box of all objects
-makeBox :: [Object] -> Box
-makeBox [] = error "it should not happen 2"
-makeBox (Object _ sphere : xs) = foldl' f (sphereToBox sphere) xs
+makeBox :: Foldable f => HasBoundingBox t => f t -> Box
+makeBox l = foldl' f (toBox x) xs
   where
-    f box (Object _ sphere') = box <> sphereToBox sphere'
+    (x:xs) = toList l
+    f box x = box <> toBox x
+
+class HasBoundingBox t where
+  toBox :: t -> Box
+
+instance (HasBoundingBox t) => HasBoundingBox (BVH t) where
+  toBox bvh = case bvh of
+    BVHLeaf o -> toBox o
+    BVHNode b0 b1 _ _ -> b0 <> b1

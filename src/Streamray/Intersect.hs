@@ -1,56 +1,85 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | This module contains everything needed to intersect ray with primitives.
 module Streamray.Intersect where
 
-import Data.List (foldl', sortOn)
+import Control.Monad.ST (runST)
+import Control.Parallel (par, pseq)
+import Data.Foldable
+import Data.Ord (comparing)
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import qualified Data.Vector.Algorithms.Tim as VSort
 import Streamray.Linear
 import Streamray.Ray
 
 -- | Represents an intersection
-data Intersection = Intersection Object {-# UNPACK #-} !Float
+data Intersection t = Intersection t {-# UNPACK #-} !Float
 
 -- * BVH Internals
 
+{-# INLINE sortVector #-}
+sortVector :: Ord b => (a -> b) -> Vector a -> Vector a
+sortVector f v = runST $ do
+  v' <- Vector.thaw v
+  VSort.sortBy (comparing f) v'
+  Vector.unsafeFreeze v'
+
 -- | Build a BVH from a list of Objects
-buildBVH :: [Object] -> BVH
-buildBVH [] = error "it should not happen"
-buildBVH [x] = BVHLeaf x
-buildBVH l = BVHNode boxA boxB subA subB
+buildBVH :: HasBoundingBox t => Vector t -> BVH t
+buildBVH = buildBVH' 0
+
+buildBVH' :: HasBoundingBox t => Int -> Vector t -> BVH t
+buildBVH' !depth l
+  | Vector.length l < 10 = BVHLeaf l
+  | otherwise =
+    if depth < 10
+      then subA `par` subB `pseq` node
+      else node
   where
-    box = makeBox l
+    box = toBox l
     axis = boxBiggestAxis box
 
-    l' = sortOn fSort l
+    l' = sortVector fSort l
 
-    fSort (Object _ (Sphere (P x y z) _)) = case axis of
+    fSort (toBox -> Box (P x y z) _) = case axis of
       X -> x
       Y -> y
       Z -> z
 
-    len = length l'
+    len = Vector.length l'
 
-    (lA, lB) = splitAt (len `div` 2) l'
-    boxA = makeBox lA
-    boxB = makeBox lB
+    (lA, lB) = Vector.splitAt (len `div` 2) l'
 
-    subA = buildBVH lA
-    subB = buildBVH lB
+    subA = buildBVH' (depth + 1) lA
+    subB = buildBVH' (depth + 1) lB
+
+    boxA = toBox subA
+    boxB = toBox subB
+    node = BVHNode boxA boxB subA subB
 
 -- * First intersection
 
+{-# SPECIALIZE rayIntersectBVH :: Ray -> BVH Sphere -> Maybe (Intersection Sphere) #-}
+
 -- | Returns the first intersection (if any) of a ray with a BVH
-rayIntersectBVH :: Ray -> BVH -> Maybe Intersection
+rayIntersectBVH :: Intersect (Vector t) => Ray -> BVH t -> Maybe (Intersection (IsObjectOrNot t))
 rayIntersectBVH ray bvh = go bvh Nothing
   where
-    go (BVHLeaf o@(Object _ sphere)) currentIt = case rayIntersectSphere ray sphere of
+    go (BVHLeaf obs) currentIt = case rayIntersect ray obs of
       Nothing -> currentIt
-      Just t' -> case currentIt of
-        Nothing -> Just $ Intersection o t'
+      it'@(Just (Intersection _ t')) -> case currentIt of
+        Nothing -> it'
         Just (Intersection _ t)
-          | t' < t -> Just $ Intersection o t'
+          | t' < t -> it'
           | otherwise -> currentIt
     go (BVHNode boxA boxB subTreeA subTreeB) currentIt = do
       -- Continue walking the subtree only if the box intersection is closer
@@ -72,20 +101,22 @@ rayIntersectBVH ray bvh = go bvh Nothing
                 | otherwise = (subTreeB, subTreeA, tBoxB, tBoxA)
            in continue secondT secondTree (continue firstT firstTree currentIt)
 
-{-# DEPRECATED rayIntersectObjets "Use rayIntersectBVH" #-}
+{-# SPECIALIZE rayIntersectObjets :: Ray -> [Sphere] -> Maybe (Intersection Sphere) #-}
+{-# SPECIALIZE rayIntersectObjets :: Ray -> [Object [Sphere]] -> Maybe (Intersection (Object Sphere)) #-}
 
 -- | Returns the first intersection (if any) of a ray with a bunch of objets
-rayIntersectObjets :: Ray -> [Object] -> Maybe Intersection
+rayIntersectObjets :: Foldable f => Intersect t => Ray -> f t -> Maybe (Intersection (IsObjectOrNot t))
 rayIntersectObjets ray = foldl' f Nothing
   where
-    f Nothing obj@(Object _ sphere) = Intersection obj <$> rayIntersectSphere ray sphere
-    f res@(Just (Intersection _ t)) obj'@(Object _ sphere) = case rayIntersectSphere ray sphere of
+    f Nothing obj = rayIntersect ray obj
+    f res@(Just (Intersection _ t)) obj' = case rayIntersect ray obj' of
       Nothing -> res
-      Just t'
-        | t' < t -> Just (Intersection obj' t')
+      it'@(Just (Intersection _ t'))
+        | t' < t -> it'
         | otherwise -> res
 
 -- * Box
+
 -- Based on https://tavianator.com/fast-branchless-raybounding-box-intersections/
 
 {-# INLINE rayFirstOffsetInBox #-}
@@ -149,10 +180,8 @@ rayIntersectBoxRange (Ray (P ox oy oz) (N dx dy dz)) (Box (P pminx pminy pminz) 
 -- * Visibility
 
 -- | Test visibility with early exit for BVH
-testRayVisibilityBVH :: Ray -> BVH -> Float -> Bool
-testRayVisibilityBVH ray (BVHLeaf (Object _ sphere)) distance2 = case rayIntersectSphere ray sphere of
-  Nothing -> True
-  Just t -> t * t >= distance2
+testRayVisibilityBVH :: Intersect t => Ray -> BVH t -> Float -> Bool
+testRayVisibilityBVH ray (BVHLeaf obs) distance2 = testRayVisibility ray obs distance2
 testRayVisibilityBVH ray (BVHNode boxA boxB subTreeA subTreeB) distance2 = visibleA && visibleB
   where
     itBoxA = case rayFirstOffsetInBox ray boxA of
@@ -166,18 +195,12 @@ testRayVisibilityBVH ray (BVHNode boxA boxB subTreeA subTreeB) distance2 = visib
     visibleA = not itBoxA || testRayVisibilityBVH ray subTreeA distance2
     visibleB = not itBoxB || testRayVisibilityBVH ray subTreeB distance2
 
-{-# DEPRECATED testRayVisibility "Use testRayVisibilityBVH" #-}
-
 -- | Test visibility with early exit
-testRayVisibility :: Ray -> [Object] -> Float -> Bool
-testRayVisibility ray objects distance2 = go objects
+testRayVisibilityObject :: (Intersect t, Foldable f) => Ray -> f t -> Float -> Bool
+testRayVisibilityObject ray objects distance2 = foldr f True objects
   where
-    go [] = True
-    go (Object _ sphere : xs) = case rayIntersectSphere ray sphere of
-      Nothing -> go xs
-      Just t
-        | t * t < distance2 -> False
-        | otherwise -> go xs
+    f _ False = False
+    f o True = testRayVisibility ray o distance2
 
 -- * Sphere
 
@@ -253,3 +276,49 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
           | t0 >= 0 -> Just t0 -- t0 solution is the smallest (by construction), and is positive. The ray hit the front of the sphere.
           | t1 >= 0 -> Just t1 -- t1 solution is the smallest positive. The ray started inside the sphere and exits it.
           | otherwise -> Nothing -- neither t0 or t1 are positive, the ray is starting after the sphere.
+
+-- | When computing an intersection, we need to know if the result is
+-- associated with a material or not.
+type family IsObjectOrNot t where
+  IsObjectOrNot (Object t) = Object Sphere
+  IsObjectOrNot [t] = IsObjectOrNot t
+  IsObjectOrNot (BVH t) = IsObjectOrNot t
+  IsObjectOrNot Sphere = Sphere
+  IsObjectOrNot (Vector t) = IsObjectOrNot t
+
+-- | Represents an object which can be intersected
+class Intersect t where
+  -- | Returns the closest intersection
+  rayIntersect :: Ray -> t -> Maybe (Intersection (IsObjectOrNot t))
+  -- | Returns True if the ray is not occluded by the object between the origin
+  -- and the squared distance
+  testRayVisibility :: Ray -> t -> Float -> Bool
+
+-- | Intersect the content of an object and wrap it with the associated material
+instance (IsObjectOrNot t ~ Sphere, Intersect t) => Intersect (Object t) where
+  rayIntersect ray (Object m prims) =
+    ( \(Intersection p t) ->
+        Intersection (Object m p) t
+    )
+      <$> rayIntersect ray prims
+  testRayVisibility ray (Object _ prims) distance2 = testRayVisibility ray prims distance2
+
+instance Intersect Sphere where
+  rayIntersect ray s = Intersection s <$> rayIntersectSphere ray s
+  testRayVisibility ray s distance2 = case rayIntersectSphere ray s of
+    Nothing -> True
+    Just t
+      | t * t < distance2 -> False
+      | otherwise -> True
+
+instance Intersect t => Intersect [t] where
+  rayIntersect ray l = rayIntersectObjets ray l
+  testRayVisibility ray l distance2 = testRayVisibilityObject ray l distance2
+
+instance Intersect t => Intersect (Vector t) where
+  rayIntersect ray l = rayIntersectObjets ray l
+  testRayVisibility ray l distance2 = testRayVisibilityObject ray l distance2
+
+instance (Intersect t) => Intersect (BVH t) where
+  rayIntersect ray l = rayIntersectBVH ray l
+  testRayVisibility ray l distance2 = testRayVisibilityBVH ray l distance2
