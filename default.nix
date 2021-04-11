@@ -1,4 +1,4 @@
-{ pkgs ? import ./nixpkgs.nix { } }: rec {
+{ pkgs ? import ./nixpkgs.nix { config = {}; } }: rec {
   inherit pkgs;
 
   # Explicit list of used files. Else there is always too much and
@@ -27,6 +27,7 @@
 
   haskellPackages = pkgs.haskell.packages.ghc8104.override {
     overrides = self: super: {
+      PyF = pkgs.haskell.lib.unmarkBroken super.PyF;
       # used for asset loading
       wavefront = pkgs.haskell.lib.doJailbreak super.wavefront;
       # linear =
