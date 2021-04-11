@@ -107,11 +107,8 @@ radiance scene lastWasSpecular depth ray g = do
 subRadiance :: forall g m. StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
 subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects scene) of
   Nothing -> pure Nothing
-  Just (Intersection (Object (Material albedo behavior emission) sphere) t) -> do
-    let x = origin ray .+. t .*. direction ray
-        normal = normalize (center sphere --> x)
-
-        -- Mirror contribution may be used in multiple material path (Mirror
+  Just (Intersection (Object (Material albedo behavior emission) (IntersectionFrame normal x)) _) -> do
+    let -- Mirror contribution may be used in multiple material path (Mirror
         -- and Glass), so we factorize the code here.
         mirrorContribution = do
           let reflectedDirection = reflect normal (direction ray)

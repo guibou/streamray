@@ -1,10 +1,14 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -23,6 +27,13 @@ import Streamray.Ray
 
 -- | Represents an intersection
 data Intersection t = Intersection t {-# UNPACK #-} !Float
+
+-- | It represents the result of the intersection, with the position and normal
+data IntersectionFrame = IntersectionFrame
+  { normal :: {-# UNPACK #-} !(V3 ('Direction 'Normalized)),
+    position :: {-# UNPACK #-} !(V3 'Position)
+  }
+  deriving (Show)
 
 -- * BVH Internals
 
@@ -68,7 +79,7 @@ buildBVH' !depth l
 
 -- * First intersection
 
-{-# SPECIALIZE rayIntersectBVH :: Ray -> BVH Sphere -> Maybe (Intersection Sphere) #-}
+{-# SPECIALIZE rayIntersectBVH :: Ray -> BVH Sphere -> Maybe (Intersection IntersectionFrame) #-}
 
 -- | Returns the first intersection (if any) of a ray with a BVH
 rayIntersectBVH :: Intersect (Vector t) => Ray -> BVH t -> Maybe (Intersection (IsObjectOrNot t))
@@ -101,8 +112,8 @@ rayIntersectBVH ray bvh = go bvh Nothing
                 | otherwise = (subTreeB, subTreeA, tBoxB, tBoxA)
            in continue secondT secondTree (continue firstT firstTree currentIt)
 
-{-# SPECIALIZE rayIntersectObjets :: Ray -> [Sphere] -> Maybe (Intersection Sphere) #-}
-{-# SPECIALIZE rayIntersectObjets :: Ray -> [Object [Sphere]] -> Maybe (Intersection (Object Sphere)) #-}
+{-# SPECIALIZE rayIntersectObjets :: Ray -> [Sphere] -> Maybe (Intersection IntersectionFrame) #-}
+{-# SPECIALIZE rayIntersectObjets :: Ray -> [Object [Sphere]] -> Maybe (Intersection (Object IntersectionFrame)) #-}
 
 -- | Returns the first intersection (if any) of a ray with a bunch of objets
 rayIntersectObjets :: Foldable f => Intersect t => Ray -> f t -> Maybe (Intersection (IsObjectOrNot t))
@@ -280,10 +291,10 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
 -- | When computing an intersection, we need to know if the result is
 -- associated with a material or not.
 type family IsObjectOrNot t where
-  IsObjectOrNot (Object t) = Object Sphere
+  IsObjectOrNot (Object t) = Object IntersectionFrame
   IsObjectOrNot [t] = IsObjectOrNot t
   IsObjectOrNot (BVH t) = IsObjectOrNot t
-  IsObjectOrNot Sphere = Sphere
+  IsObjectOrNot Sphere = IntersectionFrame
   IsObjectOrNot (Vector t) = IsObjectOrNot t
 
 -- | Represents an object which can be intersected
@@ -296,7 +307,7 @@ class Intersect t where
   testRayVisibility :: Ray -> t -> Float -> Bool
 
 -- | Intersect the content of an object and wrap it with the associated material
-instance (IsObjectOrNot t ~ Sphere, Intersect t) => Intersect (Object t) where
+instance (IsObjectOrNot t ~ IntersectionFrame, Intersect t) => Intersect (Object t) where
   rayIntersect ray (Object m prims) =
     ( \(Intersection p t) ->
         Intersection (Object m p) t
@@ -305,7 +316,12 @@ instance (IsObjectOrNot t ~ Sphere, Intersect t) => Intersect (Object t) where
   testRayVisibility ray (Object _ prims) distance2 = testRayVisibility ray prims distance2
 
 instance Intersect Sphere where
-  rayIntersect ray s = Intersection s <$> rayIntersectSphere ray s
+  rayIntersect ray s = case rayIntersectSphere ray s of
+    Nothing -> Nothing
+    Just t -> Just $ Intersection (IntersectionFrame n p) t
+      where
+        p = origin ray .+. t .*. direction ray
+        n = normalize (center s --> p)
   testRayVisibility ray s distance2 = case rayIntersectSphere ray s of
     Nothing -> True
     Just t
