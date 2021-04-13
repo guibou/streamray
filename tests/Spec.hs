@@ -99,12 +99,6 @@ main = hspec $ do
       it "total internal reflection" $ do
         -- Test with a strong IOR and a grazing angle
         refract 3 (N 0 0 1) (N 0.9 0.9 0.1) `shouldBe` Nothing
-  describe "object to light" $ do
-    it "property: nothing on 0 emission" $ do
-      property $ \albedo center radius -> objectToLight (Object (Material albedo Diffuse (C 0 0 0)) [Sphere center radius]) `shouldBe` []
-    it "property: pass the sphere light otherwise" $ do
-      property $ \albedo center radius emission -> emission /= C 0 0 0 ==> objectToLight (Object (Material albedo Diffuse emission) [Sphere center radius]) `shouldBe` [Light (SphereLight $ Sphere center radius) emission]
-
   describe "render" $ do
     it "property: sameside" $ do
       property $ \a b n -> sameSide n a b `shouldNotBe` sameSide n a (flipDirection b)

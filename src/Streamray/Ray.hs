@@ -27,7 +27,6 @@ import Data.Foldable (Foldable (toList), foldl')
 import Data.Vector (Vector)
 import GHC.Generics
 import Streamray.Linear
-import Streamray.Material
 
 -- | This is a ray
 -- Any point X on the ray can be represented using X = Origin + t * Direction.
@@ -43,10 +42,6 @@ data Sphere = Sphere
     radius :: {-# UNPACK #-} !Float
   }
   deriving (Show, Eq, NFData, Generic)
-
--- | Represents a object, with its shape and material
-data Object t = Object Material t
-  deriving (Show, Foldable, NFData, Generic)
 
 -- | Bounding volume hierarchy
 data BVH t
@@ -87,9 +82,6 @@ instance HasBoundingBox Sphere where
     where
       dRadius = D radius radius radius
 
-instance (HasBoundingBox t) => HasBoundingBox (Object t) where
-  toBox = makeBox
-
 instance (HasBoundingBox t) => HasBoundingBox (Vector t) where
   toBox = makeBox
 
@@ -110,3 +102,6 @@ instance (HasBoundingBox t) => HasBoundingBox (BVH t) where
   toBox bvh = case bvh of
     BVHLeaf o -> toBox o
     BVHNode b0 b1 _ _ -> b0 <> b1
+
+instance HasBoundingBox Box where
+  toBox = id

@@ -1,8 +1,10 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Streamray.Scene.ManySpheres where
 
 import qualified Data.Vector as Vector
+import Streamray.Intersect
 import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
@@ -13,15 +15,29 @@ white :: Material
 white = Material (C 1 1 1) Diffuse (C 0 0 0)
 
 manySpheres :: Float -> Scene
-manySpheres dd = mkScene (Vector.singleton objects) lights
+manySpheres dd = Scene objects lights
   where
-    objects = Object white ss
-    ss = Vector.fromList $ do
-      x <- [0, dd .. 500]
+    objects =
+      SceneBVH
+        ( buildBVH
+            [ AttachMaterial white (Spheres (buildBVH sSpheres)),
+              AttachMaterial white (Boxes (buildBVH sBox))
+            ]
+        )
+
+    sSpheres = Vector.fromList $ do
+      x <- [0, dd .. 250]
       y <- [0, dd .. 500]
       z <- [0, dd .. 500]
 
-      pure $ Sphere (P x y z) 1
+      pure $ Sphere (P x y z) 10
+
+    sBox = Vector.fromList $ do
+      x <- [250, 250 + dd .. 500]
+      y <- [0, dd .. 500]
+      z <- [0, dd .. 500]
+
+      pure $ toBox $ Sphere (P x y z) 10
 
     lights =
       [ Light (PointLight (P 50 250 250)) (C 30000 10000 10000),

@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -23,7 +24,9 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Algorithms.Tim as VSort
 import Streamray.Linear
+import Streamray.Material
 import Streamray.Ray
+import Streamray.Scene
 
 -- | Represents an intersection
 data Intersection t = Intersection t {-# UNPACK #-} !Float
@@ -82,7 +85,7 @@ buildBVH' !depth l
 {-# SPECIALIZE rayIntersectBVH :: Ray -> BVH Sphere -> Maybe (Intersection IntersectionFrame) #-}
 
 -- | Returns the first intersection (if any) of a ray with a BVH
-rayIntersectBVH :: Intersect (Vector t) => Ray -> BVH t -> Maybe (Intersection (IsObjectOrNot t))
+rayIntersectBVH :: Intersect (Vector t) => Ray -> BVH t -> Maybe (Intersection (HasAttachedMaterial t))
 rayIntersectBVH ray bvh = go bvh Nothing
   where
     go (BVHLeaf obs) currentIt = case rayIntersect ray obs of
@@ -112,11 +115,8 @@ rayIntersectBVH ray bvh = go bvh Nothing
                 | otherwise = (subTreeB, subTreeA, tBoxB, tBoxA)
            in continue secondT secondTree (continue firstT firstTree currentIt)
 
-{-# SPECIALIZE rayIntersectObjets :: Ray -> [Sphere] -> Maybe (Intersection IntersectionFrame) #-}
-{-# SPECIALIZE rayIntersectObjets :: Ray -> [Object [Sphere]] -> Maybe (Intersection (Object IntersectionFrame)) #-}
-
 -- | Returns the first intersection (if any) of a ray with a bunch of objets
-rayIntersectObjets :: Foldable f => Intersect t => Ray -> f t -> Maybe (Intersection (IsObjectOrNot t))
+rayIntersectObjets :: Foldable f => Intersect t => Ray -> f t -> Maybe (Intersection (HasAttachedMaterial t))
 rayIntersectObjets ray = foldl' f Nothing
   where
     f Nothing obj = rayIntersect ray obj
@@ -290,30 +290,22 @@ rayIntersectSphere Ray {origin, direction} Sphere {radius, center} =
 
 -- | When computing an intersection, we need to know if the result is
 -- associated with a material or not.
-type family IsObjectOrNot t where
-  IsObjectOrNot (Object t) = Object IntersectionFrame
-  IsObjectOrNot [t] = IsObjectOrNot t
-  IsObjectOrNot (BVH t) = IsObjectOrNot t
-  IsObjectOrNot Sphere = IntersectionFrame
-  IsObjectOrNot (Vector t) = IsObjectOrNot t
+type family HasAttachedMaterial t where
+  HasAttachedMaterial SceneGraph = AttachedMaterial
+  HasAttachedMaterial Geometry = IntersectionFrame
+  HasAttachedMaterial (BVH t) = HasAttachedMaterial t
+  HasAttachedMaterial Sphere = IntersectionFrame
+  HasAttachedMaterial Box = IntersectionFrame
+  HasAttachedMaterial (Vector t) = HasAttachedMaterial t
 
 -- | Represents an object which can be intersected
 class Intersect t where
   -- | Returns the closest intersection
-  rayIntersect :: Ray -> t -> Maybe (Intersection (IsObjectOrNot t))
+  rayIntersect :: Ray -> t -> Maybe (Intersection (HasAttachedMaterial t))
 
   -- | Returns True if the ray is not occluded by the object between the origin
   -- and the squared distance
   testRayVisibility :: Ray -> t -> Float -> Bool
-
--- | Intersect the content of an object and wrap it with the associated material
-instance (IsObjectOrNot t ~ IntersectionFrame, Intersect t) => Intersect (Object t) where
-  rayIntersect ray (Object m prims) =
-    ( \(Intersection p t) ->
-        Intersection (Object m p) t
-    )
-      <$> rayIntersect ray prims
-  testRayVisibility ray (Object _ prims) distance2 = testRayVisibility ray prims distance2
 
 instance Intersect Sphere where
   rayIntersect ray s = case rayIntersectSphere ray s of
@@ -328,9 +320,18 @@ instance Intersect Sphere where
       | t * t < distance2 -> False
       | otherwise -> True
 
-instance Intersect t => Intersect [t] where
-  rayIntersect ray l = rayIntersectObjets ray l
-  testRayVisibility ray l distance2 = testRayVisibilityObject ray l distance2
+instance Intersect Box where
+  rayIntersect ray s = case rayIntersectBox ray s of
+    Nothing -> Nothing
+    Just t -> Just $ Intersection (IntersectionFrame n p) t
+      where
+        p = origin ray .+. t .*. direction ray
+        n = flipDirection (direction ray)
+  testRayVisibility ray s distance2 = case rayIntersectBox ray s of
+    Nothing -> True
+    Just t
+      | t * t < distance2 -> False
+      | otherwise -> True
 
 instance Intersect t => Intersect (Vector t) where
   rayIntersect ray l = rayIntersectObjets ray l
@@ -339,3 +340,24 @@ instance Intersect t => Intersect (Vector t) where
 instance (Intersect t) => Intersect (BVH t) where
   rayIntersect ray l = rayIntersectBVH ray l
   testRayVisibility ray l distance2 = testRayVisibilityBVH ray l distance2
+
+-- | This is an intersection result with an attached material
+data AttachedMaterial = AttachedMaterial Material IntersectionFrame
+
+instance Intersect SceneGraph where
+  rayIntersect ray = \case
+    SceneBVH bvh -> rayIntersect ray bvh
+    AttachMaterial mat p -> case rayIntersect ray p of
+      Nothing -> Nothing
+      Just (Intersection frame t) -> Just (Intersection (AttachedMaterial mat frame) t)
+  testRayVisibility ray = \case
+    SceneBVH bvh -> testRayVisibility ray bvh
+    AttachMaterial _mat p -> testRayVisibility ray p
+
+instance Intersect Geometry where
+  rayIntersect ray = \case
+    Spheres b -> rayIntersect ray b
+    Boxes b -> rayIntersect ray b
+  testRayVisibility ray = \case
+    Spheres b -> testRayVisibility ray b
+    Boxes b -> testRayVisibility ray b
