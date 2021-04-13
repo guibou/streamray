@@ -16,6 +16,7 @@ import GHC.Generics
 import Streamray.Light
 import Streamray.Material
 import Streamray.Ray
+import Streamray.Geometry.Box
 
 -- | This is a scene
 data Scene = Scene

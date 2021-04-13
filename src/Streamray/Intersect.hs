@@ -27,6 +27,7 @@ import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
+import Streamray.Geometry.Box
 
 -- | Represents an intersection
 data Intersection t = Intersection t {-# UNPACK #-} !Float
