@@ -29,7 +29,7 @@
     overrides = self: super: {
       PyF = pkgs.haskell.lib.unmarkBroken super.PyF;
       # used for asset loading
-      wavefront = pkgs.haskell.lib.doJailbreak super.wavefront;
+      wavefront = pkgs.haskell.lib.unmarkBroken (pkgs.haskell.lib.doJailbreak super.wavefront);
       # linear =
       #   pkgs.haskell.lib.appendBuildFlag super.linear "--ghc-options=-haddock";
       # JuicyPixels = pkgs.haskell.lib.appendBuildFlag super.JuicyPixels

@@ -22,7 +22,17 @@ maintainer:         guillaum.bouchard@gmail.com
 extra-source-files: CHANGELOG.md
 
 library
-    build-depends:    base ^>=4.14.1.0, JuicyPixels, random, async, vector, vector-algorithms, deepseq, time, PyF, parallel
+    build-depends:    base ^>=4.14.1.0
+                    , JuicyPixels
+                    , random
+                    , async
+                    , vector
+                    , vector-algorithms
+                    , deepseq
+                    , time
+                    , PyF
+                    , parallel
+                    , wavefront
     hs-source-dirs:   src
     exposed-modules: Streamray.Linear
                    , Streamray.Render
@@ -32,9 +42,11 @@ library
                    , Streamray.Scene.Cornel
                    , Streamray.RenderSettings
                    , Streamray.Scene.ManySpheres
+                   , Streamray.Scene.HaskellLogo
                    , Streamray.Sampling
                    , Streamray.Light
                    , Streamray.Intersect
+                   , Streamray.Geometry.Triangle
                    , Streamray.Geometry.Box
     default-language: Haskell2010
     ghc-options: -Wall -haddock -fwarn-incomplete-uni-patterns -Wunused-packages -Wno-name-shadowing

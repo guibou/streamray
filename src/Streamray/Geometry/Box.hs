@@ -18,9 +18,12 @@ data Box = Box {-# UNPACK #-} !(V3 'Position) {-# UNPACK #-} !(V3 'Position)
 instance Semigroup Box where
   Box pMin pMax <> Box pMin' pMax' =
     Box (minP pMin pMin') (maxP pMax pMax')
-    where
-      minP (P x y z) (P x' y' z') = P (min x x') (min y y') (min z z')
-      maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
+
+minP :: V3 'Position -> V3 'Position -> V3 'Position
+minP (P x y z) (P x' y' z') = P (min x x') (min y y') (min z z')
+
+maxP :: V3 'Position -> V3 'Position -> V3 'Position
+maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
 
 instance Monoid Box where
   mempty = Box (P inf inf inf) (P minf minf minf)
@@ -55,3 +58,11 @@ boxBiggestAxis (Box pMin pMax)
     D x y z = pMin --> pMax
 
 data Axis = X | Y | Z deriving (Show, Eq)
+
+-- Build a box from two points
+buildBox :: V3 'Position -> V3 'Position -> Box
+buildBox (P x y z) (P x' y' z') = Box (P (min x x') (min y y') (min z z')) (P (max x x') (max y y') (max z z'))
+
+-- Add a point to a box
+addPointToBox :: Box -> V3 'Position -> Box
+addPointToBox (Box pMin pMax) p = Box (minP pMin p) (maxP pMax p)

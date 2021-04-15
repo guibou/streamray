@@ -2,6 +2,7 @@ module Streamray.RenderSettings where
 
 import Streamray.Scene
 import Streamray.Scene.Cornel
+import Streamray.Scene.HaskellLogo
 import Streamray.Scene.ManySpheres
 
 data RenderSettings = RenderSettings
@@ -15,8 +16,10 @@ loadKnownScene :: RenderSettings -> Scene
 loadKnownScene renderSettings = case knownScene renderSettings of
   Cornel -> cornel
   ManySpheres i -> manySpheres i
+  HaskellLogo -> haskellLogo
 
 data KnownScene
   = Cornel
   | ManySpheres Float
+  | HaskellLogo
   deriving (Show, Read)

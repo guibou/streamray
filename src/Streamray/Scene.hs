@@ -14,6 +14,7 @@ module Streamray.Scene where
 import Control.DeepSeq
 import GHC.Generics
 import Streamray.Geometry.Box
+import Streamray.Geometry.Triangle
 import Streamray.Light
 import Streamray.Material
 import Streamray.Ray
@@ -37,6 +38,7 @@ data SceneGraph
 data Geometry
   = Spheres !(BVH Sphere)
   | Boxes !(BVH Box)
+  | Triangles !(BVH Triangle)
   deriving (Show, Generic, NFData)
 
 instance HasBoundingBox SceneGraph where
@@ -46,3 +48,4 @@ instance HasBoundingBox SceneGraph where
 instance HasBoundingBox Geometry where
   toBox (Spheres o) = toBox o
   toBox (Boxes o) = toBox o
+  toBox (Triangles o) = toBox o

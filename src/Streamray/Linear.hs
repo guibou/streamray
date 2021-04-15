@@ -42,6 +42,7 @@ module Streamray.Linear
     (-->),
     norm,
     normSquared,
+    cross,
 
     -- * Patterns
     pattern P,
@@ -235,3 +236,10 @@ x --> y = y .-. x
 {-# COMPLETE D #-}
 
 {-# COMPLETE C #-}
+
+-- | Cross product for any vector
+cross ::
+  V3 ('Direction t) ->
+  V3 ('Direction k) ->
+  V3 ('Direction 'NotNormalized)
+cross (V3 x y z) (V3 x' y' z') = V3 (y * z' - z * y') (z * x' - x * z') (x * y' - y * x')

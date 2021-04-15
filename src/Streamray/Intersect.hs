@@ -24,6 +24,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Algorithms.Tim as VSort
 import Streamray.Geometry.Box
+import Streamray.Geometry.Triangle
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
@@ -296,6 +297,7 @@ type family HasAttachedMaterial t where
   HasAttachedMaterial Geometry = IntersectionFrame
   HasAttachedMaterial (BVH t) = HasAttachedMaterial t
   HasAttachedMaterial Sphere = IntersectionFrame
+  HasAttachedMaterial Triangle = IntersectionFrame
   HasAttachedMaterial Box = IntersectionFrame
   HasAttachedMaterial (Vector t) = HasAttachedMaterial t
 
@@ -327,6 +329,7 @@ instance Intersect Box where
     Just t -> Just $ Intersection (IntersectionFrame n p) t
       where
         p = origin ray .+. t .*. direction ray
+        -- TODO: compute the real box normal
         n = flipDirection (direction ray)
   testRayVisibility ray s distance2 = case rayIntersectBox ray s of
     Nothing -> True
@@ -359,6 +362,51 @@ instance Intersect Geometry where
   rayIntersect ray = \case
     Spheres b -> rayIntersect ray b
     Boxes b -> rayIntersect ray b
+    Triangles b -> rayIntersect ray b
   testRayVisibility ray = \case
     Spheres b -> testRayVisibility ray b
     Boxes b -> testRayVisibility ray b
+    Triangles b -> testRayVisibility ray b
+
+instance Intersect Triangle where
+  rayIntersect ray t@(Triangle p0 p1 p2) = case rayIntersectTriangle ray t of
+    Nothing -> Nothing
+    Just t ->
+      let p = origin ray .+. t .*. direction ray
+          -- TODO: compute the real box normal
+          n = normalize $ cross (p0 --> p1) (p0 --> p2)
+       in Just $ Intersection (IntersectionFrame n p) t
+  testRayVisibility ray t distance2 = case rayIntersectTriangle ray t of
+    Nothing -> True
+    Just t
+      | t * t < distance2 -> False
+      | otherwise -> True
+
+-- Implementation of https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+
+-- | Returns an double if the ray intersect the triangle
+rayIntersectTriangle :: Ray -> Triangle -> Maybe Float
+rayIntersectTriangle Ray {origin, direction} (Triangle vertex0 vertex1 vertex2)
+  | a > - epsilon && a < epsilon = Nothing -- ray parallel to the triangle
+  | u < 0 || u > 1 = Nothing -- out of the triangle
+  | v < 0 || u + v > 1 = Nothing -- out too
+  | t > epsilon = Just t
+  | otherwise = Nothing
+  where
+    epsilon = 0.0000001
+    edge1 = vertex0 --> vertex1
+    edge2 = vertex0 --> vertex2
+
+    h = direction `cross` edge2
+    a = edge1 `dot` h
+
+    f = 1.0 / a
+
+    s = vertex0 --> origin
+
+    u = f * dot s h
+
+    q = s `cross` edge1
+
+    v = f * dot direction q
+    t = f * dot edge2 q
