@@ -23,11 +23,11 @@ import Data.Ord (comparing)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Algorithms.Tim as VSort
+import Streamray.Geometry.Box
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
-import Streamray.Geometry.Box
 
 -- | Represents an intersection
 data Intersection t = Intersection t {-# UNPACK #-} !Float

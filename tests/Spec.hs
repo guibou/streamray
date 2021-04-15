@@ -8,8 +8,8 @@
 import Control.Monad
 import Data.Coerce
 import Data.Maybe
+import Streamray.Geometry.Box
 import Streamray.Intersect
-import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
@@ -45,7 +45,7 @@ instance Arbitrary (V3 'Color) where
     pure $ C (abs x) (abs y) (abs z)
 
 instance Arbitrary Sample2D where
-  arbitrary = Sample2D <$> (snd . properFraction . abs <$> arbitrary) <*> (snd . properFraction . abs <$> arbitrary)
+  arbitrary = Sample2D <$> (snd . properFraction @_ @Int . abs <$> arbitrary) <*> (snd . properFraction @_ @Int . abs <$> arbitrary)
 
 main :: IO ()
 main = hspec $ do
@@ -58,6 +58,8 @@ main = hspec $ do
       Box (P 0 0 0) (P 1 1 1) <> Box (P 2 3 1) (P 5 6 7) `shouldBe` Box (P 0 0 0) (P 5 6 7)
     it "fromSphere" $ do
       toBox (Sphere (P 1 2 3) 2) `shouldBe` Box (P (-1) 0 1) (P 3 4 5)
+    it "property: mempty" $ do
+      property $ \p0 p1 -> Box p0 p1 <> mempty `shouldBe` Box p0 p1
   describe "intersect" $ do
     describe "sphere" $ do
       it "in front" $ do

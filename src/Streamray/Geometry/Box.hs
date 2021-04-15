@@ -22,6 +22,12 @@ instance Semigroup Box where
       minP (P x y z) (P x' y' z') = P (min x x') (min y y') (min z z')
       maxP (P x y z) (P x' y' z') = P (max x x') (max y y') (max z z')
 
+instance Monoid Box where
+  mempty = Box (P inf inf inf) (P minf minf minf)
+    where
+      inf = 1 / 0
+      minf = - inf
+
 class HasBoundingBox t where
   toBox :: t -> Box
 
@@ -35,9 +41,8 @@ instance (HasBoundingBox t) => HasBoundingBox (Vector t) where
 
 -- | Bounding box of all objects
 makeBox :: (Foldable f, HasBoundingBox t) => f t -> Box
-makeBox l = foldl' f (toBox x) xs
+makeBox = foldl' f mempty
   where
-    (x : xs) = toList l
     f box x = box <> toBox x
 
 -- | Return the largest axis of a box

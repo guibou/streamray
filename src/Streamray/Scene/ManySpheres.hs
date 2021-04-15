@@ -4,13 +4,13 @@
 module Streamray.Scene.ManySpheres where
 
 import qualified Data.Vector as Vector
+import Streamray.Geometry.Box
 import Streamray.Intersect
 import Streamray.Light
 import Streamray.Linear
 import Streamray.Material
 import Streamray.Ray
 import Streamray.Scene
-import Streamray.Geometry.Box
 
 white :: Material
 white = Material (C 1 1 1) Diffuse (C 0 0 0)
