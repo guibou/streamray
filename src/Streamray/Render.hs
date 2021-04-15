@@ -39,15 +39,17 @@ import System.Random.Stateful
 directLighting ::
   StatefulGen g m =>
   Scene ->
+  -- | Incoming ray direction
+  V3 ('Direction 'Normalized) ->
   -- | Position of the lighting
   V3 'Position ->
   -- | Surface normal (object must be on the positive side of the normal)
-  V3 ('Direction k) ->
+  V3 ('Direction 'Normalized) ->
   -- | Light
   Light ->
   g ->
   m (V3 'Color)
-directLighting scene x normal light g = do
+directLighting scene wi x normal light g = do
   (directionToLight, coefNormLight) <- case Streamray.Light.behavior light of
     PointLight p -> pure (x --> p, 1)
     SphereLight Sphere {radius, center} -> do
@@ -66,7 +68,10 @@ directLighting scene x normal light g = do
   let directionToLightNormalized = normalize directionToLight
 
       -- Diffuse shading
-      coef = max 0 (dot normal directionToLightNormalized / (pi * lightDistance2))
+      coef =
+        if sameSide normal (flipDirection wi) directionToLightNormalized
+          then abs (dot normal directionToLightNormalized / (pi * lightDistance2))
+          else 0
 
       lightDistance2 = dot directionToLight directionToLight
 
@@ -140,7 +145,7 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
         -- Sample uniformly one light
         -- TODO: we would like to do that by importance
         lu <- uniformRM (0, length (lights scene) - 1) g
-        directLightContrib' <- directLighting scene x normal (lights scene !! lu) g
+        directLightContrib' <- directLighting scene (direction ray) x normal (lights scene !! lu) g
         let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLightContrib'
 
         -- Indirect lighting

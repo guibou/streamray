@@ -26,6 +26,7 @@ haskellLogo = Scene objects lights
         Light (PointLight (P 250 250 250)) (C 30000 30000 30000)
       ]
 
+-- Resize and scale the asset
 transform :: Triangle -> Triangle
 transform (Triangle p0 p1 p2) = Triangle (t p0) (t p1) (t p2)
   where
