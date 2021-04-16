@@ -9,6 +9,9 @@ module Streamray.Sampling
     uniform2F,
     makeBase,
     Sample2D (..),
+    sampleCosinusMax,
+    sampleSphere,
+    sampleHemiSphere,
   )
 where
 
@@ -17,6 +20,36 @@ import System.Random.Stateful
 
 data Sample2D = Sample2D {-# UNPACK #-} !Float {-# UNPACK #-} !Float
   deriving (Show)
+
+-- | Sampling random point on unit sphere
+-- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
+-- Formula 33
+sampleSphere :: Sample2D -> (Float, V3 ('Direction 'Normalized))
+sampleSphere (Sample2D u v) =
+  let phi = 2 * pi * u
+      sqrt_v_one_minus_v = sqrt (v * (1 - v))
+   in ( 1 / (4 * pi),
+        unsafeNormalized $
+          D
+            (2 * cos phi * sqrt_v_one_minus_v)
+            (2 * sin phi * sqrt_v_one_minus_v)
+            (1 - 2 * v)
+      )
+
+-- | Sampling random point on unit hemisphere
+-- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
+-- Formula 34
+sampleHemiSphere :: Sample2D -> (Float, V3 ('Direction 'Normalized))
+sampleHemiSphere (Sample2D u v) =
+  let phi = 2 * pi * u
+      sqrt_one_minus_vv = sqrt (1 - v * v)
+   in ( 1 / (2 * pi),
+        unsafeNormalized $
+          D
+            (cos phi * sqrt_one_minus_vv)
+            (sin phi * sqrt_one_minus_vv)
+            v
+      )
 
 -- | Sampling proportional to cosinus weighted on hemisphere
 -- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
@@ -37,6 +70,35 @@ sampleCosinus (Sample2D u v) =
             (cos phi * sqrt_1_minus_v)
             (sin phi * sqrt_1_minus_v)
             sqrt_v
+      )
+
+--
+
+-- | Sampling proportional to cosinus weighted on spherical cap
+-- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
+-- Formula 35(extended): sampling proportional to cosinus weighted on hemisphere
+sampleCosinusMax ::
+  -- | Theta Max
+  Float ->
+  -- | Random sample
+  Sample2D ->
+  -- | (pdf, sampledDirection)
+  (Float, V3 ('Direction 'Normalized))
+sampleCosinusMax cos_theta_max (Sample2D u v) =
+  let phi = 2 * pi * u
+      sqrt_v = sqrt v
+      -- theta = acos (sqrt v)
+      theta = acos z
+      z = sqrt (1 - v * sin_theta_max2)
+      sin_theta_max2 = 1 - cos_theta_max * cos_theta_max
+      sin_theta_max = sqrt sin_theta_max2
+      sin_theta_max_sqrt_v = sin_theta_max * sqrt_v
+   in ( cos theta / (pi * sin_theta_max2),
+        unsafeNormalized $
+          D
+            (cos phi * sin_theta_max_sqrt_v)
+            (sin phi * sin_theta_max_sqrt_v)
+            z
       )
 
 -- | Basis rotation, based on http://jcgt.org/published/0006/01/01/ Building an Orthonormal Basis, Revisited

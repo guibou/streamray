@@ -58,8 +58,22 @@ directLighting scene wi x normal light g = do
 
       let sphereRotationAxis = normalize (center --> x)
 
-      -- Sample a direction proportional to cosinus
-      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus uv
+      -- Sample a direction proportional to cosinus in the visible spherical cap
+      --
+      --                          O--- - - - - - - - - - -\
+      --                         /                       \
+      --                        /                        \
+      --  x ------------------- P----------- c
+      --
+      -- (use your imagination, the point x is lit by the sphere light centered on c)
+      --  There is a point on the spherea, at O were the sphere is no longer able to see the point x.
+      --  We compute the cosinus of the angle PcO:
+      let cos_theta_max = radius / norm (center --> x)
+      -- And the we sample points only on the spherical cap (drawed here with /)
+      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinusMax cos_theta_max uv
+      -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleSphere uv
+      --let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleHemiSphere uv
+      -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus uv
       let pointOnLight = center .+. radius .*. sampledDirection
       let directionToLight = x --> pointOnLight
       let cosFactor = - dot (normalize (center --> pointOnLight)) (normalize directionToLight)

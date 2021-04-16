@@ -20,6 +20,13 @@ import System.Random.Stateful
 import Test.Hspec
 import Test.QuickCheck
 
+-- | Newtype wrapper to sample "random" number in the 0-1 range.
+newtype RandomFloat = RandomFloat Float
+  deriving (Show)
+
+instance Arbitrary RandomFloat where
+  arbitrary = RandomFloat . abs . snd . (properFraction @Float @Int) <$> arbitrary
+
 instance Arbitrary (V3 'Position) where
   arbitrary = P <$> arbitrary <*> arbitrary <*> arbitrary
 
@@ -116,12 +123,12 @@ main = hspec $ do
       it "property: orthonormal" $ do
         property $ \n -> do
           let (baseX, baseY) = makeBase n
-          baseX `dot` baseY `shouldApprox` 0
-          baseX `dot` n `shouldApprox` 0
-          n `dot` baseY `shouldApprox` 0
-          norm (coerce baseX) `shouldApprox` 1
-          norm (coerce baseY) `shouldApprox` 1
-          norm (coerce n) `shouldApprox` 1
+          baseX `dot` baseY `shouldSatisfy` approx 0
+          baseX `dot` n `shouldSatisfy` approx 0
+          n `dot` baseY `shouldSatisfy` approx 0
+          norm (coerce baseX) `shouldSatisfy` approx 1
+          norm (coerce baseY) `shouldSatisfy` approx 1
+          norm (coerce n) `shouldSatisfy` approx 1
 
     describe "cosinus sampling" $ do
       it "property: always up the normal" $ do
@@ -134,8 +141,29 @@ main = hspec $ do
           let (pdf, _wo) = sampleCosinus uv
           pdf `shouldSatisfy` (>= 0)
       -- WIP
-      xit "pdf integrates to 1" $ do
-        runStateGen_ (mkStdGen 0) (integrateSphere (fst . sampleCosinus) 100) `shouldBe` 1
+      describe "integrates" $ do
+        it "1" $ do
+          -- See [Notes about integration]
+          -- >>> integrate(sin(theta), (theta, 0, pi/2), (phi, 0, 2 * pi))
+          -- 2⋅π
+          runStateGen_ (mkStdGen 0) (integrate (const (1 :: Float)) sampleCosinus 10000) `shouldSatisfy` approx (2 * pi)
+        it "cos" $ do
+          -- >>> integrate(cos(theta) * sin(theta), (theta, 0, pi/2), (phi, 0, 2 * pi))
+          -- π
+          runStateGen_ (mkStdGen 0) (integrate (dot (N 0 0 1)) sampleCosinus 1000) `shouldSatisfy` approx pi
+
+    describe "cosinus (clamped) sampling" $ do
+      describe "integrates full hemisphere" $ do
+        it "1" $ do
+          runStateGen_ (mkStdGen 0) (integrate (const (1 :: Float)) (sampleCosinusMax 0) 10000) `shouldSatisfy` approx (2 * pi)
+        it "cos" $ do
+          runStateGen_ (mkStdGen 0) (integrate (dot (N 0 0 1)) (sampleCosinusMax 0) 10000) `shouldSatisfy` approx pi
+      describe "property: variable a" $ do
+        it "1" $ do
+          -- >>> integrate(sin(theta), (theta, 0, cos(a)), (phi, 0, 2 * pi))
+          -- 2⋅π⋅(1 - cos(cos(a)))
+          property $ \(RandomFloat a) -> runStateGen_ (mkStdGen 0) (integrate (const (1 :: Float)) (sampleCosinusMax a) 10000) `shouldSatisfy` approx (2 * pi * (1 - a))
+
     describe "render" $ do
       describe "tonemap" $ do
         it "truncate negative" $ do
@@ -154,12 +182,24 @@ approximateVector ::
   Bool
 approximateVector a b = normSquared (coerce a --> coerce b) < 1e-5
 
-shouldApprox :: (Show a, Ord a, Fractional a) => a -> a -> Expectation
-shouldApprox a b = abs (a - b) `shouldSatisfy` (< 1e-5)
+approx x a = abs (a - x) < 1e-1
 
-integrateSphere :: (StatefulGen g m) => (Sample2D -> Float) -> Int -> g -> m Float
-integrateSphere f nSamples g = do
+integrate :: StatefulGen g m => (t -> Float) -> (Sample2D -> (Float, t)) -> Int -> g -> m Float
+integrate f samplingFunction nSamples g = do
   res <- replicateM nSamples $ do
-    (f <$> uniform2F g)
+    (pdf, value) <- samplingFunction <$> uniform2F g
+    pure $ f value / pdf
 
   pure $ sum res / fromIntegral nSamples
+
+-- [Notes about integration]
+-- sampleCosinus and sampleCosinusMax function are generating random samples on
+-- a (hemi)sphere (ical cap). As such, they can be used to integrate function on a sphere.
+--
+-- Tests are done using the numerical 'integrate' function and are compared to
+-- known analytic function computed in sympy. The computation formula is
+-- written before each tests.
+--
+-- You will see that the computation formula includes a @sin(theta)@ term,
+-- which represents the small surface element we use to integrate, which is
+-- technically, sin(theta) dtheta dphi.

@@ -4,6 +4,41 @@ You can follow it on https://www.twitch.tv/FlyingGuibou
 
 Stream will be copied to Youtube regularly.
 
+Stream #10
+==========
+
+ We extended the scenegraph in order to introduce transformation (translation)
+ of scene graph item. In order to do that, we do had to also take the
+ translation of bounding boxes and ray into account when computing
+ intersection. This gives us the possibility to reuse the same asset, without
+ pre transforming it (so without duplication).
+
+![](results/stream10/haskell-logo.png)
+
+We improved the sampling strategy for sphere light by only sampling the visible
+spherical cap on the sphere light. The result is show in this image where the
+grid shows different way of sampling the sphere light, from left to right, top
+to bottom:
+
+  - Sampling a random point of the sphere light
+  - Sampling a random point on the hemisphere facing the point behind lit
+  - Sampling a random point on the hemisphere facing the point being lit and
+    proportional to cosinus weighted solid angle.
+  - Sampling a random point on the spherical cap facing the point being lit and
+    proportional to cosinus weighted solid angle.
+
+With 10 samples per pixel, we observe that the latest strategy is the most
+efficient. This strategy does not generates samples which are occluded by the
+sphere itself by sampling in the visible spherical cap and does also prioritize
+points which maximises the cosinus term.
+
+![](results/stream10/sampleSphere.png)
+![](results/stream10/sampleHemiSphere.png)
+![](results/stream10/sampleCosinus.png)
+![](results/stream10/sampleCosinusMax.png)
+
+![](results/stream10/sampling_comparison.png)
+
 Stream #9
 =========
 
