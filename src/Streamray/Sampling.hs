@@ -109,7 +109,7 @@ makeBase ::
   (V3 ('Direction 'Normalized), V3 ('Direction 'Normalized))
 makeBase (N x y z) = (baseX, baseY)
   where
-    sign = signum z
+    sign = if z == 0 then 1 else signum z
     a = -1.0 / (sign + z)
     b = x * y * a
 

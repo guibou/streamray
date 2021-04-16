@@ -128,6 +128,8 @@ main = hspec $ do
       it "property: rotating Z around anything" $ do
         property $ \n -> rotateVector n (N 0 0 1) `shouldApproxVector` n
     describe "make base" $ do
+      it "works with 0 z" $ do
+        makeBase (N 1 0 0) `shouldBe` (N 0 0 (-1), N 0 1 0)
       it "property: orthonormal" $ do
         property $ \n -> do
           let (baseX, baseY) = makeBase n
