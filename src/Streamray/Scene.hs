@@ -36,9 +36,6 @@ data SceneGraph
   | Transformed Transform SceneGraph
   deriving (Show, Generic, NFData)
 
-newtype Transform = Translate (V3 ('Direction 'NotNormalized))
-  deriving (Show, Generic, NFData)
-
 -- | This is an aggregate of primitives
 data Geometry
   = Spheres !(BVH Sphere)
@@ -49,9 +46,9 @@ data Geometry
 instance HasBoundingBox SceneGraph where
   toBox (SceneBVH bvh) = toBox bvh
   toBox (AttachMaterial _ o) = toBox o
-  toBox (Transformed (Translate d) o) =
+  toBox (Transformed mat o) =
     let Box pMin pMax = toBox o
-     in Box (pMin .+. d) (pMax .+. d)
+     in Box (transformPoint mat pMin) (transformPoint mat pMax)
 
 instance HasBoundingBox Geometry where
   toBox (Spheres o) = toBox o

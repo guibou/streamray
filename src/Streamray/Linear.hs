@@ -51,6 +51,20 @@ module Streamray.Linear
     pattern C,
     -- Unsafe API
     unsafeNormalized,
+
+    -- * Transformations
+    Transform,
+    translate,
+    scale,
+    rotate,
+    rotateX,
+    rotateY,
+    rotateZ,
+    inverseTransform,
+    composeTransform,
+    transformPoint,
+    transformDirection,
+    transformNormal,
   )
 where
 
@@ -58,6 +72,7 @@ import Control.DeepSeq
 import Control.Exception (assert)
 import Data.Coerce
 import GHC.Generics
+import qualified Linear
 
 -- | Represents whether a direction is normalized or not
 data DirectionKind = Normalized | NotNormalized
@@ -243,3 +258,150 @@ cross ::
   V3 ('Direction k) ->
   V3 ('Direction 'NotNormalized)
 cross (V3 x y z) (V3 x' y' z') = V3 (y * z' - z * y') (z * x' - x * z') (x * y' - y * x')
+
+-- * Matrices transformations
+
+-- | Opaque type which represents a transformation
+newtype Transform = Transform (Linear.M44 Float)
+  deriving (Show, Generic, NFData)
+
+-- | Invert a transformation
+inverseTransform :: Transform -> Transform
+inverseTransform (Transform m) = Transform (Linear.inv44 m)
+
+-- | This is a translation
+translate :: V3 ('Direction 'NotNormalized) -> Transform
+translate (D dx dy dz) = Transform $ Linear.V4 (Linear.V4 1 0 0 dx) (Linear.V4 0 1 0 dy) (Linear.V4 0 0 1 dz) (Linear.V4 0 0 0 1)
+
+-- | This is a scaling matrix.
+scale :: V3 ('Direction 'NotNormalized) -> Transform
+scale (D sx sy sz) =
+  Transform $
+    Linear.V4
+      (Linear.V4 sx 0 0 0)
+      (Linear.V4 0 sy 0 0)
+      (Linear.V4 0 0 sz 0)
+      (Linear.V4 0 0 0 1)
+
+rotateX, rotateY, rotateZ :: Float -> Transform
+
+-- | Rotate around the Z axis by an angle in radians
+rotateZ = rotate (N 0 0 1)
+
+-- | Rotate around the Y axis by an angle in radians
+rotateY = rotate (N 0 1 0)
+
+-- | Rotate around the X axis by an angle in radians.
+rotateX = rotate (N 1 0 0)
+
+-- | Generalized rotation of an angle in radians around an arbitrary vector.
+rotate :: V3 ('Direction 'Normalized) -> Float -> Transform
+-- This implementation uses the internal quaternions from the linear package, because that's easier.
+-- However, during the stream, we detailled rotation around Z axis using the following matrice:
+--
+-- cos(a), -sin(a), 0, 0
+-- sin(a),  cos(a), 0, 0
+-- 0     ,       0, 1, 0
+-- 0     ,       0, 0, 1
+rotate (V3 x y z) angle = Transform (Linear.mkTransformation (Linear.axisAngle (Linear.V3 x y z) angle) (Linear.V3 0 0 0))
+
+-- | Transform a point
+transformPoint :: Transform -> V3 'Position -> V3 'Position
+transformPoint (Transform m) (V3 x y z) =
+  -- We just use matrix multiplication with an homogeneous vector with w = 1
+  let Linear.V4 x' y' z' w = m Linear.!* Linear.V4 x y z 1
+   in assert (w == 1) $ V3 x' y' z'
+
+-- | Transform a normal
+-- This is a bit more convoluted.
+-- Consider it like that. We have two points, A and B. And a normal to this
+-- vector, N. Such that:
+--
+-- (AB) `dot` N = 0
+--
+-- We can write that in matrix form, introducing (Mt . Mt-1) which is thhe identity in th emiddle.
+--
+-- (note: Mt is the transpose of M)
+--
+-- AB . Mt . Mt-1 . N = 0
+--
+-- Now, once the transformation M is done, this equality should remain.
+--
+-- ==>
+--  (M . ABt)t . (Nt . Mt-1t)t
+--
+--  (M.ABt)t is equal to AB' (the tnsformed version of AB using the M matrice)
+--
+--  So, in order for the equality to stay true, (Nt . Mt-1t)t is the new normal. Let's develop that.
+--
+--  (Nt . Mt-1t)t
+--  Mt-1tt . N
+--  Mt-1 . N
+--
+--  So the M' transformation which should be applied to the normal is Mt-1
+--
+--
+--  Another way of developing that is as following.
+--
+--  We observed that the transformation we would like to apply is the same, with the scale inversed. Said otherwise, if
+--
+--  M = S * R
+--
+--  (still ignoring the T component)
+--
+--  Then
+--
+--  M' = S-1 * R
+--
+--  (With the Scale componenent inversed).
+--
+--  For example, if you have a line between (1,0) and (0, 1), the normal is
+--  (once normalized) (1, 1). If we scale that twice over the X axis, we get a
+--  line between (2, 0) and (0, 1). The normal (once normalized) is (0.5, 1). (Draw it).
+--
+--  Let's develop a bit
+--
+--  M' = S-1 * R
+--  M  = (S-1 * R)-1-1
+--
+--  (double inverse does not change)
+--
+--  = (R-1 * S-1-1)-1
+--  = (R-1 * S)-1
+--  (Inverse distribute and inverse the composition)
+--
+--  = (R-1tt * Stt)-1
+--
+--  (Added double transpose, which does not change anything)
+--
+--  The transpose of the Scale matrix, is equal to itself. The transpose of the
+--  rotation matrix is equal to its inverse.
+--
+--  ==>
+--
+--   = (Rt * St)-1
+--
+--  (Distribute the t similarly to the inverse)
+--
+--   = (S * R)t-1
+--   = Mt-1
+--
+--   Which is equal to M'
+transformNormal :: Transform -> V3 ('Direction 'Normalized) -> V3 ('Direction 'Normalized)
+transformNormal (Transform m) (V3 x y z) =
+  let Linear.V4 x' y' z' w = Linear.inv44 (Linear.transpose m) Linear.!* Linear.V4 x y z 0
+   in assert (w == 0) $ N x' y' z'
+
+-- | Transform a direction of any kind
+transformDirection :: Transform -> V3 ('Direction k) -> V3 ('Direction k)
+transformDirection (Transform m) (V3 x y z) =
+  -- We use matrix multiplication with an homogeneous vector with w = 0
+  let Linear.V4 x' y' z' w = m Linear.!* Linear.V4 x y z 0
+   in assert (w == 0) $ V3 x' y' z'
+
+-- Compose two transformations
+--
+-- @composeTransform a b@ returns a transformation which first apply
+-- transformation @a@ then @b@.
+composeTransform :: Transform -> Transform -> Transform
+composeTransform (Transform a) (Transform b) = Transform (a Linear.!*! b)

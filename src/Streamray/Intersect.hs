@@ -354,18 +354,18 @@ instance Intersect SceneGraph where
     AttachMaterial mat p -> case rayIntersect ray p of
       Nothing -> Nothing
       Just (Intersection frame t) -> Just (Intersection (AttachedMaterial mat frame) t)
-    Transformed (Translate deltaDir) o -> case rayIntersect ray' o of
+    Transformed transform o -> case rayIntersect ray' o of
       Nothing -> Nothing
       Just (Intersection (AttachedMaterial mat (IntersectionFrame n p)) t) ->
-        Just (Intersection (AttachedMaterial mat (IntersectionFrame n (p .+. deltaDir))) t)
+        Just (Intersection (AttachedMaterial mat (IntersectionFrame (transformNormal transform n) (transformPoint transform p))) t)
       where
-        ray' = Ray (origin ray .-. deltaDir) (direction ray)
+        ray' = Ray (transformPoint (inverseTransform transform) (origin ray)) (transformDirection (inverseTransform transform) (direction ray))
   testRayVisibility ray = \case
     SceneBVH bvh -> testRayVisibility ray bvh
     AttachMaterial _mat p -> testRayVisibility ray p
-    Transformed (Translate deltaDir) o -> testRayVisibility ray' o
+    Transformed transform o -> testRayVisibility ray' o
       where
-        ray' = Ray (origin ray .-. deltaDir) (direction ray)
+        ray' = Ray (transformPoint (inverseTransform transform) (origin ray)) (transformDirection (inverseTransform transform) (direction ray))
 
 instance Intersect Geometry where
   rayIntersect ray = \case
