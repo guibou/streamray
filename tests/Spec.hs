@@ -193,7 +193,9 @@ main = hspec $ do
       it "identity scale does nothing" $ do
         property $ \p -> transformPoint (scale (D 1 1 1)) p `shouldBe` p
     it "property: inverse t -> t is identity" $ do
-      property $ \t p -> transformPoint (t `composeTransform` inverseTransform t) p `shouldApproxVector` p
+      property $ \t p -> transformPoint t (transformPointInv t p) `shouldApproxVector` p
+    it "property: inverse t -> t is identity" $ do
+      property $ \t (p :: V3 ('Direction 'Normalized)) -> transformDirection t (transformDirectionInv t p) `shouldApproxVector` p
     it "Direction: translate invariant" $ do
       property $ \t d -> transformDirection (translate t) (d :: V3 ('Direction 'NotNormalized)) `shouldBe` d
     it "normal: translate invariant" $ do

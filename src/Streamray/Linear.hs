@@ -60,10 +60,11 @@ module Streamray.Linear
     rotateX,
     rotateY,
     rotateZ,
-    inverseTransform,
     composeTransform,
     transformPoint,
+    transformPointInv,
     transformDirection,
+    transformDirectionInv,
     transformNormal,
   )
 where
@@ -262,21 +263,26 @@ cross (V3 x y z) (V3 x' y' z') = V3 (y * z' - z * y') (z * x' - x * z') (x * y' 
 -- * Matrices transformations
 
 -- | Opaque type which represents a transformation
-newtype Transform = Transform (Linear.M44 Float)
+data Transform = Transform
+  { -- Internally, we stores the transformation matrix, its inverse, and the
+    -- transformation matrix for normal in order to avoid recomputing them at each intersection.
+    mat :: Linear.M44 Float,
+    invMat :: Linear.M44 Float,
+    normalMat :: Linear.M44 Float
+  }
   deriving (Show, Generic, NFData)
 
--- | Invert a transformation
-inverseTransform :: Transform -> Transform
-inverseTransform (Transform m) = Transform (Linear.inv44 m)
+mkTransform :: Linear.M44 Float -> Transform
+mkTransform m = Transform m (Linear.inv44 m) (Linear.transpose (Linear.inv44 m))
 
 -- | This is a translation
 translate :: V3 ('Direction 'NotNormalized) -> Transform
-translate (D dx dy dz) = Transform $ Linear.V4 (Linear.V4 1 0 0 dx) (Linear.V4 0 1 0 dy) (Linear.V4 0 0 1 dz) (Linear.V4 0 0 0 1)
+translate (D dx dy dz) = mkTransform $ Linear.V4 (Linear.V4 1 0 0 dx) (Linear.V4 0 1 0 dy) (Linear.V4 0 0 1 dz) (Linear.V4 0 0 0 1)
 
 -- | This is a scaling matrix.
 scale :: V3 ('Direction 'NotNormalized) -> Transform
 scale (D sx sy sz) =
-  Transform $
+  mkTransform $
     Linear.V4
       (Linear.V4 sx 0 0 0)
       (Linear.V4 0 sy 0 0)
@@ -303,11 +309,18 @@ rotate :: V3 ('Direction 'Normalized) -> Float -> Transform
 -- sin(a),  cos(a), 0, 0
 -- 0     ,       0, 1, 0
 -- 0     ,       0, 0, 1
-rotate (V3 x y z) angle = Transform (Linear.mkTransformation (Linear.axisAngle (Linear.V3 x y z) angle) (Linear.V3 0 0 0))
+rotate (V3 x y z) angle = mkTransform (Linear.mkTransformation (Linear.axisAngle (Linear.V3 x y z) angle) (Linear.V3 0 0 0))
 
 -- | Transform a point
 transformPoint :: Transform -> V3 'Position -> V3 'Position
-transformPoint (Transform m) (V3 x y z) =
+transformPoint (Transform m _ _) = trPoint m
+
+-- | Inverse of 'transformPoint'
+transformPointInv :: Transform -> V3 'Position -> V3 'Position
+transformPointInv (Transform _ m _) = trPoint m
+
+trPoint :: Linear.V4 (Linear.V4 Float) -> V3 k1 -> V3 k2
+trPoint m (V3 x y z) =
   -- We just use matrix multiplication with an homogeneous vector with w = 1
   let Linear.V4 x' y' z' w = m Linear.!* Linear.V4 x y z 1
    in assert (w == 1) $ V3 x' y' z'
@@ -386,15 +399,22 @@ transformPoint (Transform m) (V3 x y z) =
 --   = (S * R)t-1
 --   = Mt-1
 --
---   Which is equal to M'
+--   Which is equal to M', as stored as the third component of Transform
 transformNormal :: Transform -> V3 ('Direction 'Normalized) -> V3 ('Direction 'Normalized)
-transformNormal (Transform m) (V3 x y z) =
-  let Linear.V4 x' y' z' w = Linear.inv44 (Linear.transpose m) Linear.!* Linear.V4 x y z 0
+transformNormal (Transform _ _ m) (V3 x y z) =
+  let Linear.V4 x' y' z' w = m Linear.!* Linear.V4 x y z 0
    in assert (w == 0) $ N x' y' z'
 
 -- | Transform a direction of any kind
 transformDirection :: Transform -> V3 ('Direction k) -> V3 ('Direction k)
-transformDirection (Transform m) (V3 x y z) =
+transformDirection (Transform m _ _) = trDir m
+
+-- | Inverse of 'transformDirection'
+transformDirectionInv :: Transform -> V3 ('Direction k) -> V3 ('Direction k)
+transformDirectionInv (Transform _ m _) = trDir m
+
+trDir :: Linear.V4 (Linear.V4 Float) -> V3 k1 -> V3 k2
+trDir m (V3 x y z) =
   -- We use matrix multiplication with an homogeneous vector with w = 0
   let Linear.V4 x' y' z' w = m Linear.!* Linear.V4 x y z 0
    in assert (w == 0) $ V3 x' y' z'
@@ -404,4 +424,4 @@ transformDirection (Transform m) (V3 x y z) =
 -- @composeTransform a b@ returns a transformation which first apply
 -- transformation @a@ then @b@.
 composeTransform :: Transform -> Transform -> Transform
-composeTransform (Transform a) (Transform b) = Transform (a Linear.!*! b)
+composeTransform (Transform a _ _) (Transform b _ _) = mkTransform (a Linear.!*! b)
