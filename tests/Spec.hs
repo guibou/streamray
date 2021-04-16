@@ -45,12 +45,9 @@ instance Arbitrary (V3 ('Direction 'NotNormalized)) where
   arbitrary = (.*.) <$> arbitrary @Float <*> arbitrary @(V3 ('Direction 'Normalized))
 
 instance Arbitrary (V3 'Color) where
-  arbitrary = do
-    x <- arbitrary
-    y <- arbitrary
-    z <- arbitrary
-
-    pure $ C (abs x) (abs y) (abs z)
+  arbitrary = C <$> absA <*> absA <*> absA
+   where
+       absA = abs <$> arbitrary
 
 instance Arbitrary Sample2D where
   arbitrary = Sample2D <$> (snd . properFraction @_ @Int . abs <$> arbitrary) <*> (snd . properFraction @_ @Int . abs <$> arbitrary)
@@ -182,6 +179,7 @@ approximateVector ::
   Bool
 approximateVector a b = normSquared (coerce a --> coerce b) < 1e-5
 
+approx :: (Ord a, Fractional a) => a -> a -> Bool
 approx x a = abs (a - x) < 1e-1
 
 integrate :: StatefulGen g m => (t -> Float) -> (Sample2D -> (Float, t)) -> Int -> g -> m Float

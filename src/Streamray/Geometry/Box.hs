@@ -31,6 +31,7 @@ instance Monoid Box where
       inf = 1 / 0
       minf = - inf
 
+-- | Returns the bounding box of any object
 class HasBoundingBox t where
   toBox :: t -> Box
 
