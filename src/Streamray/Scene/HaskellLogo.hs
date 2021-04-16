@@ -18,7 +18,15 @@ haskellLogoTriangles = unsafePerformIO (readTriangles "assets/haskell_logo.obj")
 haskellLogo :: Scene
 haskellLogo = Scene objects lights
   where
-    objects = AttachMaterial (Material (C 1 1 1) Diffuse (C 0 0 0)) (Triangles $ buildBVH $ fmap transform haskellLogoTriangles)
+    logo = AttachMaterial (Material (C 1 1 1) Diffuse (C 0 0 0)) (Triangles $ buildBVH $ fmap transform haskellLogoTriangles)
+    objects =
+      SceneBVH $
+        buildBVH $
+          [ Transformed (Translate (D 450 450 450)) logo,
+            Transformed (Translate (D 50 450 450)) logo,
+            Transformed (Translate (D 50 50 450)) logo,
+            Transformed (Translate (D 450 50 450)) logo
+          ]
 
     lights =
       [ Light (PointLight (P 50 250 250)) (C 30000 10000 10000),
@@ -31,4 +39,4 @@ transform :: Triangle -> Triangle
 transform (Triangle p0 p1 p2) = Triangle (t p0) (t p1) (t p2)
   where
     t (P x y z) = P (t' x) (t' y) (t' z)
-    t' c = 60 * c + 250
+    t' c = 30 * c
