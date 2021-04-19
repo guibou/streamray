@@ -45,6 +45,7 @@ library
                    , Streamray.RenderSettings
                    , Streamray.Scene.ManySpheres
                    , Streamray.Scene.HaskellLogo
+                   , Streamray.Scene.MIS
                    , Streamray.Sampling
                    , Streamray.Light
                    , Streamray.Intersect
