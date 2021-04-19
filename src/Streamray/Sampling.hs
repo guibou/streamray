@@ -12,6 +12,7 @@ module Streamray.Sampling
     sampleCosinusMax,
     sampleSphere,
     sampleHemiSphere,
+    sampleCosinusLobe,
   )
 where
 
@@ -70,6 +71,29 @@ sampleCosinus (Sample2D u v) =
             (cos phi * sqrt_1_minus_v)
             (sin phi * sqrt_1_minus_v)
             sqrt_v
+      )
+
+-- | Sampling proportional to cosinus lobe around normal
+-- From https://people.cs.kuleuven.be/~philip.dutre/GI/TotalCompendium.pdf
+-- Formula 36
+sampleCosinusLobe ::
+  Float ->
+  -- | Random sample
+  Sample2D ->
+  -- | (pdf, sampledDirection)
+  (Float, V3 ('Direction 'Normalized))
+sampleCosinusLobe n (Sample2D u v) =
+  let phi = 2 * pi * u
+      z = v ** (1 / (n + 1))
+      theta = acos z
+      sqrt_1_minus_z2 = sqrt $ 1 - v ** (2 / (n + 1))
+
+   in ( (n + 1) / (2 * pi) * cos theta ** n,
+        unsafeNormalized $
+          D
+            (cos phi * sqrt_1_minus_z2)
+            (sin phi * sqrt_1_minus_z2)
+            z
       )
 
 --
