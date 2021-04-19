@@ -19,7 +19,7 @@ import Codec.Picture.Types (newMutableImage, unsafeFreezeImage)
 import Control.Concurrent.Async
 import Control.DeepSeq
 import Control.Exception (evaluate)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Data.Foldable
 import Data.Maybe
 import Data.Time (diffUTCTime, getCurrentTime)
@@ -35,6 +35,8 @@ import Streamray.RenderSettings
 import Streamray.Sampling
 import Streamray.Scene
 import System.Random.Stateful
+import Debug.Trace
+import GHC.IO.Unsafe
 
 -- | Compute the direct lighting for a diffuse material
 directLighting ::
@@ -115,7 +117,15 @@ directLighting scene wi x normal light roughness g = do
 
       visibility = if canSeeLightSource then C 1 1 1 else C 0 0 0
 
-  pure $ coefNormLight .*. visibility .*. Streamray.Light.emission light .*. coef
+  pure $ traceIf isNaN "coefNormLight" coefNormLight .*. visibility .*. Streamray.Light.emission light .*. traceIf isNaN "coef" coef
+
+{-# NOINLINE traceIf #-}
+traceIf :: (a -> Bool) -> String -> a -> a
+traceIf p message v = unsafePerformIO $ do
+    when (p v) $ do
+        traceIO message
+    pure v
+
 
 -- | Returns the pixel color associated with a 'Ray'. It performs russian rulette.
 radiance :: StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
@@ -232,7 +242,11 @@ raytrace nSamples scene (fromIntegral -> x) (fromIntegral -> y) g = do
   -- TODO: restore alpha
   let contribs = catMaybes rs
   let nAlphaContribs = nSamples - length contribs
-  let contrib = foldl' (.+.) (C 0 0 0) contribs
+  let contrib = foldl' safeAddContrib (C 0 0 0) contribs
+
+      safeAddContrib c0 c1@(C x' y' z')
+        | isNaN x' || isNaN y' || isNaN z' = traceShow "NaN ended in the buffer" c0
+        | otherwise = c0 .+. c1
 
   pure $ tonemap (1.0 - fromIntegral nAlphaContribs / fromIntegral nSamples) ((1 / fromIntegral nSamples :: Float) .*. contrib)
   where
