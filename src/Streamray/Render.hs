@@ -48,9 +48,11 @@ directLighting ::
   V3 ('Direction 'Normalized) ->
   -- | Light
   Light ->
+  -- | Roughness
+  Float ->
   g ->
   m (V3 'Color)
-directLighting scene wi x normal light g = do
+directLighting scene wi x normal light roughness g = do
   (directionToLight, coefNormLight) <- case Streamray.Light.behavior light of
     PointLight p -> pure (x --> p, 1)
     SphereLight Sphere {radius, center} -> do
@@ -71,7 +73,9 @@ directLighting scene wi x normal light g = do
       --  We compute the cosinus of the angle PcO:
       let cos_theta_max = radius / norm (center --> x)
       -- And the we sample points only on the spherical cap (drawed here with /)
-      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinusMax cos_theta_max uv
+      --
+      -- TODO; solve NaN issue when x is too close to the sphere
+      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinusMax (min 0.9 cos_theta_max) uv
       -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleSphere uv
       --let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleHemiSphere uv
       -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus uv
@@ -79,13 +83,16 @@ directLighting scene wi x normal light g = do
       let directionToLight = x --> pointOnLight
       let cosFactor = - dot (normalize (center --> pointOnLight)) (normalize directionToLight)
 
-      pure (x --> pointOnLight, (radius * radius * cosFactor / pi) / (pdf * radius * radius))
+      pure (x --> pointOnLight, (radius * radius * traceIf isNaN "cosFactor" cosFactor / pi) / (traceIf isNaN "pdf" pdf * 4 * radius * radius))
   let directionToLightNormalized = normalize directionToLight
+
+      -- Glossy shading
+      rlFactor = dot (reflect normal wi) directionToLightNormalized ** roughness
 
       -- Diffuse shading
       coef =
         if sameSide normal (flipDirection wi) directionToLightNormalized
-          then abs (dot normal directionToLightNormalized / (pi * lightDistance2))
+          then abs (dot normal directionToLightNormalized * (roughness + 2) * rlFactor / (2 * pi * lightDistance2))
           else 0
 
       lightDistance2 = dot directionToLight directionToLight
@@ -158,21 +165,24 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
               else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
                 mirrorContribution
       Mirror -> mirrorContribution
-      Diffuse -> do
+      Glossy roughness -> do
         -- Sample uniformly one light
         -- TODO: we would like to do that by importance
         lu <- uniformRM (0, length (lights scene) - 1) g
-        directLightContrib' <- directLighting scene (direction ray) x normal (lights scene !! lu) g
+        directLightContrib' <- directLighting scene (direction ray) x normal (lights scene !! lu) roughness g
         let directLightContrib = (fromIntegral (length (lights scene)) :: Float) .*. directLightContrib'
 
         -- Indirect lighting
         uv <- uniform2F g
         -- Sample a direction proportional to cosinus
-        let (_pdf, indirectDirection) = rotateVector normal <$> sampleCosinus uv
+        let (pdf, indirectDirection) = rotateVector trueReflectDirection <$> sampleCosinusLobe roughness uv
 
-            -- The surface value is cos / pi, which is equal to the pdf. So they cancels.
-            -- coefIndirect = (dot indirectDirection normal / pi) / pdf
-            coefIndirect :: Float = 1
+            coefIndirect = dot indirectDirection (flipDirection normal) / (2 * pi * pdf) * (roughness + 2) * rlFactor
+       
+            -- Glossy shading
+            trueReflectDirection = reflect (flipDirection normal) (direction ray)
+            rlFactor = abs $ dot trueReflectDirection indirectDirection ** roughness
+
             indirectRay = Ray (x .+. epsilon .*. indirectDirection) indirectDirection
 
         contribIndirect <- fromMaybe (C 0 0 0) <$> radiance scene False (depth + 1) indirectRay g

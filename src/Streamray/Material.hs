@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | This module represents material, i.e. surface behaviors
 module Streamray.Material where
@@ -12,12 +13,15 @@ import Streamray.Linear
 -- | How the surface behaves with light.
 data MaterialBehavior
   = -- | A diffuse material, which scatters light in every directions
-    Diffuse
+    Glossy Float
   | -- | A glass material, not used yet
     Glass Float
   | -- | A mirror material, not used yet
     Mirror
   deriving (Show, NFData, Generic)
+
+pattern Diffuse :: MaterialBehavior
+pattern Diffuse = Glossy 0
 
 -- | Material, with albedo and behavior
 data Material = Material

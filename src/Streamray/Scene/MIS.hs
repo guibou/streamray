@@ -28,17 +28,17 @@ mis = Scene objects lights
               ( translate (D 0 100 100)
                   `composeTransform` rotate (N 1 0 0) (1.25 * pi / 2)
               )
-              $ object (Material white Mirror black) plane,
+              $ object (Material white (Glossy 0) black) plane,
             Transformed
               ( translate (D 0 200 100)
                   `composeTransform` rotate (N 1 0 0) (1.1 * pi / 2)
               )
-              $ object (Material white Mirror black) plane,
+              $ object (Material white (Glossy 50) black) plane,
             Transformed
               ( translate (D 0 300 100)
                   `composeTransform` rotate (N 1 0 0) ((1 / 1.1) * pi / 2)
               )
-              $ object (Material white Mirror black) plane,
+              $ object (Material white (Glossy 1000) black) plane,
             Transformed
               ( translate (D 0 400 100)
                   `composeTransform` rotate (N 1 0 0) ((1 / 1.35) * pi / 2)
