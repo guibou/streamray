@@ -11,6 +11,7 @@
 -- | This is the core of the rendering algorithm, with the main raytrace
 -- "integrator", called 'radiance', as well as a naive camera model and image
 -- saving.
+{-# LANGUAGE GADTs #-}
 module Streamray.Render where
 
 import Codec.Picture
@@ -135,7 +136,9 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
           contrib <- radiance scene True (depth + 1) reflectedRay g
           pure $ fromMaybe (C 0 0 0) contrib
 
-    Just . (albedo .*.) <$> case behavior of
+        postLight c = albedo .*. c .+. (if lastWasSpecular then emission else C 0 0 0)
+
+    Just . postLight <$> case behavior of
       Glass ior -> do
         -- flip the normal so that it is pointing outside.
         let transmittedDirectionMaybe = refract ior normal (direction ray)
@@ -174,7 +177,7 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
 
         contribIndirect <- fromMaybe (C 0 0 0) <$> radiance scene False (depth + 1) indirectRay g
 
-        pure $ directLightContrib .+. (coefIndirect .*. contribIndirect) .+. (if lastWasSpecular then emission else C 0 0 0)
+        pure $ directLightContrib .+. (coefIndirect .*. contribIndirect)
 
 -- | @sameSide n a b@ returns 'True' if @a@ and @b@ are on the same side of the
 -- normal @n@.
