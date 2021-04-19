@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PatternSynonyms #-}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 module Streamray.Scene.MIS where
 
 import Streamray.Geometry.Triangle
@@ -42,17 +44,23 @@ mis = Scene objects lights
                   `composeTransform` rotate (N 1 0 0) ((1 / 1.35) * pi / 2)
               )
               $ object (Material white Mirror black) plane,
-              aLight (P 50 250 (-100)) 70 (C 1 0 0),
-              aLight (P 150 250 (-100)) 50 (C 0 1 0),
-              aLight (P 250 250 (-100)) 30 (C 0 0 1),
-              aLight (P 350 250 (-100)) 10 (C 1 1 0)
+              aLight (P 50 250 (-100)) 70 (C lScale 0 0),
+              aLight (P 150 250 (-100)) 50 (C 0 lScale 0),
+              aLight (P 250 250 (-100)) 30 (C 0 0 lScale),
+              aLight (P 350 250 (-100)) 10 (C lScale lScale 0)
           ]
 
     lights =
-      [ Light (PointLight (P 0 450 (-100))) (C 0 10000 0)
+      [ -- Light (PointLight (P 450 250 (-100))) (C lScale lScale lScale),
+        Light (SphereLight (Sphere (P 50 250 (-100)) 70)) (C lScale 0 0),
+        Light (SphereLight (Sphere (P 150 250 (-100)) 50)) (C 0 lScale 0),
+        Light (SphereLight (Sphere (P 250 250 (-100)) 30)) (C 0 0 lScale),
+        Light (SphereLight (Sphere (P 350 250 (-100)) 10)) (C lScale lScale 0)
       ]
 
-    aLight p r emit = AttachMaterial (Material black Diffuse emit) (Spheres (buildBVH [Sphere p r]))
+    aLight p r emit = AttachMaterial (Material black Diffuse (emit .*. (1 / (4 * pi * r * r)))) (Spheres (buildBVH [Sphere p r]))
+
+    lScale = 10000
 
     black = C 0 0 0
     white = C 1 1 1
