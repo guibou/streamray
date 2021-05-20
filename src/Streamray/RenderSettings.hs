@@ -3,9 +3,9 @@ module Streamray.RenderSettings where
 import Streamray.Scene
 import Streamray.Scene.Cornel
 import Streamray.Scene.HaskellLogo
+import Streamray.Scene.MIS
 import Streamray.Scene.ManySpheres
 import Streamray.Scene.SphereSampling
-import Streamray.Scene.MIS
 
 data RenderSettings = RenderSettings
   { samplesPerPixel :: Int,

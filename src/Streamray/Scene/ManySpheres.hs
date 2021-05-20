@@ -13,7 +13,7 @@ import Streamray.Ray
 import Streamray.Scene
 
 white :: Material
-white = Material (C 1 1 1) Diffuse (C 0 0 0)
+white = Material (C 1 1 1) Diffuse Nothing
 
 manySpheres :: Float -> Scene
 manySpheres dd = Scene objects lights

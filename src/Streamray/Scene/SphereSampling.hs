@@ -22,13 +22,12 @@ sphereSampling = Scene objects lights
       SceneBVH $
         buildBVH
           [ objectSingle
-              (Material (C 0.6 0.6 0) Diffuse black)
+              (Material (C 0.6 0.6 0) Diffuse Nothing)
               (Sphere (P 250 250 (sphereRadius + 500)) sphereRadius)
           ]
 
     lights =
       [Light (SphereLight sphereLight) emitSphereLight]
-    black = C 0 0 0
 
     objectSingle m s = AttachMaterial m (Spheres $ buildBVH [s])
 

@@ -8,6 +8,7 @@ module Streamray.Material where
 
 import Control.DeepSeq
 import GHC.Generics
+import Streamray.Light
 import Streamray.Linear
 
 -- | How the surface behaves with light.
@@ -27,7 +28,7 @@ pattern Diffuse = Glossy 0
 data Material = Material
   { albedo :: V3 'Color,
     behavior :: MaterialBehavior,
-    emission :: V3 'Color
+    emission :: Maybe Light
   }
   deriving (Show, NFData, Generic)
 

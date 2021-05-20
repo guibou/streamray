@@ -16,7 +16,7 @@ cornel :: Scene
 cornel = Scene objects lights
   where
     sphereLight = Sphere (P 250 150 250) 30
-    emitSphereLight = C 10000 10000 10000
+    emitSphereLight = Just $ Light (SphereLight sphereLight) (C 10000 10000 10000)
     objects =
       SceneBVH $
         buildBVH
@@ -55,9 +55,9 @@ cornel = Scene objects lights
         Light (PointLight (P 450 250 250)) (C 10000 10000 30000),
         -- This is the sphere light with emission
         -- TODO: copy it from the objects list
-        Light (SphereLight sphereLight) emitSphereLight
+        Light (SphereLight sphereLight) (C 10000 10000 10000)
       ]
-    black = C 0 0 0
+    black = Nothing
 
     objectSingle m s = AttachMaterial m (Spheres $ buildBVH [s])
 

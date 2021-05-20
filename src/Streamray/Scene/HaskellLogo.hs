@@ -31,7 +31,7 @@ bar = undefined
 haskellLogo :: Scene
 haskellLogo = Scene objects lights
   where
-    logo = AttachMaterial (Material (C 1 1 1) Diffuse (C 0 0 0)) (Triangles $ buildBVH haskellLogoTriangles)
+    logo = AttachMaterial (Material (C 1 1 1) Diffuse Nothing) (Triangles $ buildBVH haskellLogoTriangles)
     objects =
       Transformed (translate (D 250 250 500)) $
         SceneBVH $

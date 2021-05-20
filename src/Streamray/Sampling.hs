@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -13,6 +14,8 @@ module Streamray.Sampling
     sampleSphere,
     sampleHemiSphere,
     sampleCosinusLobe,
+    pdfSampleCosinusLobe,
+    pdfSamplingCosinusMax,
   )
 where
 
@@ -85,16 +88,20 @@ sampleCosinusLobe ::
 sampleCosinusLobe n (Sample2D u v) =
   let phi = 2 * pi * u
       z = v ** (1 / (n + 1))
-      theta = acos z
       sqrt_1_minus_z2 = sqrt $ 1 - v ** (2 / (n + 1))
-
-   in ( (n + 1) / (2 * pi) * cos theta ** n,
+   in ( (n + 1) / (2 * pi) * z ** n,
         unsafeNormalized $
           D
             (cos phi * sqrt_1_minus_z2)
             (sin phi * sqrt_1_minus_z2)
             z
       )
+{-# INLINE sampleCosinusLobe #-}
+
+{-# INLINE sampleCosinusMax #-}
+
+pdfSampleCosinusLobe :: Float -> Float -> Float
+pdfSampleCosinusLobe roughness cosTheta = (roughness + 1) / (2 * pi) * cosTheta ** roughness
 
 --
 
@@ -125,13 +132,22 @@ sampleCosinusMax cos_theta_max (Sample2D u v) =
             z
       )
 
+pdfSamplingCosinusMax :: Float -> Float -> Float
+pdfSamplingCosinusMax cosThetaMax cosTheta = cosTheta / (pi * sin_theta_max2)
+  where
+    sin_theta_max2 = 1 - cosThetaMax * cosThetaMax
+
+data Base = Base {-# UNPACK #-} !(V3 ('Direction 'Normalized)) {-# UNPACK #-} !(V3 ('Direction 'Normalized))
+
+{- INLINE makeBase #-}
+
 -- | Basis rotation, based on http://jcgt.org/published/0006/01/01/ Building an Orthonormal Basis, Revisited
 makeBase ::
   -- | Normal (Z of the basis)
   V3 ('Direction 'Normalized) ->
   -- | (baseX, baseY)
-  (V3 ('Direction 'Normalized), V3 ('Direction 'Normalized))
-makeBase (N x y z) = (baseX, baseY)
+  Base
+makeBase (N x y z) = Base baseX baseY
   where
     sign = if z == 0 then 1 else signum z
     a = -1.0 / (sign + z)
@@ -148,7 +164,7 @@ rotateVector ::
   V3 ('Direction 'Normalized) ->
   V3 ('Direction 'Normalized)
 rotateVector normal (N x y z) =
-  let (baseX, baseY) = makeBase normal
+  let Base baseX baseY = makeBase normal
    in unsafeNormalized (x .*. baseX .+. y .*. baseY .+. z .*. normal)
 
 -- | Uniform sampling of a random number in [0, 1]

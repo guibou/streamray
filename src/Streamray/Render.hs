@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -11,7 +12,6 @@
 -- | This is the core of the rendering algorithm, with the main raytrace
 -- "integrator", called 'radiance', as well as a naive camera model and image
 -- saving.
-{-# LANGUAGE GADTs #-}
 module Streamray.Render where
 
 import Codec.Picture
@@ -24,6 +24,8 @@ import Data.Foldable
 import Data.Maybe
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.Time.Clock (NominalDiffTime)
+import Debug.Trace
+import GHC.IO.Unsafe
 import GHC.Stats
 import PyF
 import Streamray.Intersect
@@ -35,8 +37,6 @@ import Streamray.RenderSettings
 import Streamray.Sampling
 import Streamray.Scene
 import System.Random.Stateful
-import Debug.Trace
-import GHC.IO.Unsafe
 
 -- | Compute the direct lighting for a diffuse material
 directLighting ::
@@ -77,7 +77,7 @@ directLighting scene wi x normal light roughness g = do
       -- And the we sample points only on the spherical cap (drawed here with /)
       --
       -- TODO; solve NaN issue when x is too close to the sphere
-      let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinusMax (min 0.9 cos_theta_max) uv
+      let (pdf', sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinusMax (min 0.9 cos_theta_max) uv
       -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleSphere uv
       --let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleHemiSphere uv
       -- let (pdf, sampledDirection) = rotateVector sphereRotationAxis <$> sampleCosinus uv
@@ -85,7 +85,22 @@ directLighting scene wi x normal light roughness g = do
       let directionToLight = x --> pointOnLight
       let cosFactor = - dot (normalize (center --> pointOnLight)) (normalize directionToLight)
 
-      pure (x --> pointOnLight, (radius * radius * traceIf isNaN "cosFactor" cosFactor / pi) / (traceIf isNaN "pdf" pdf * 4 * radius * radius))
+      let pdf = pdf' / (radius * radius)
+
+      let pdfOther =
+            ( pdfSampleCosinusLobe
+                roughness
+                ( abs $
+                    dot (reflect normal wi) (normalize directionToLight)
+                )
+            )
+              / (normSquared directionToLight)
+              * (abs (dot (normalize (center --> pointOnLight)) (normalize directionToLight)))
+
+      let sq x = x * x
+      let weight = sq pdf / (sq pdf + sq pdfOther)
+
+      pure (x --> pointOnLight, weight * (cosFactor / pi) / (pdf * 4 * radius * radius))
   let directionToLightNormalized = normalize directionToLight
 
       -- Glossy shading
@@ -122,38 +137,50 @@ directLighting scene wi x normal light roughness g = do
 {-# NOINLINE traceIf #-}
 traceIf :: (a -> Bool) -> String -> a -> a
 traceIf p message v = unsafePerformIO $ do
-    when (p v) $ do
-        traceIO message
-    pure v
-
+  when (p v) $ do
+    traceIO message
+  pure v
 
 -- | Returns the pixel color associated with a 'Ray'. It performs russian rulette.
-radiance :: StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-radiance _ _ 5 _ _ = pure $ Just (C 0 0 0)
-radiance scene lastWasSpecular depth ray g = do
+radiance :: StatefulGen g m => Scene -> Bool -> Int -> Ray -> Float -> g -> m (Maybe (V3 'Color))
+radiance _ _ 5 _ _ _ = pure $ Just (C 0 0 0)
+radiance scene lastWasSpecular depth ray pdfW g = do
   r <- uniformF g
 
-  let coefRR = if depth == 0 then 1 else 0.5
+  let coefRR = if depth <= 1 then 1 else 0.5
 
   if r < coefRR
-    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance scene lastWasSpecular depth ray g
+    then fmap (((1 :: Float) / coefRR) .*.) <$> subRadiance scene lastWasSpecular depth ray pdfW g
     else pure $ Just (C 0 0 0)
 
 -- | Returns the pixel color associated with a 'Ray'. This is the same as
 -- 'radiance', but it does not perform russian rulette.
-subRadiance :: forall g m. StatefulGen g m => Scene -> Bool -> Int -> Ray -> g -> m (Maybe (V3 'Color))
-subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects scene) of
+subRadiance :: forall g m. StatefulGen g m => Scene -> Bool -> Int -> Ray -> Float -> g -> m (Maybe (V3 'Color))
+subRadiance scene lastWasSpecular depth ray pdfW g = case rayIntersect ray (objects scene) of
   Nothing -> pure Nothing
-  Just (Intersection (AttachedMaterial (Material albedo behavior emission) (IntersectionFrame normal x)) _) -> do
+  Just (Intersection (AttachedMaterial (Material albedo behavior e) (IntersectionFrame normal x)) t) -> do
     let -- Mirror contribution may be used in multiple material path (Mirror
         -- and Glass), so we factorize the code here.
         mirrorContribution = do
           let reflectedDirection = reflect normal (direction ray)
               reflectedRay = Ray (x .+. epsilon .*. reflectedDirection) reflectedDirection
-          contrib <- radiance scene True (depth + 1) reflectedRay g
+          contrib <- radiance scene True (depth + 1) reflectedRay 0 g
           pure $ fromMaybe (C 0 0 0) contrib
 
-        postLight c = albedo .*. c .+. (if lastWasSpecular then emission else C 0 0 0)
+        visibleIndirect =
+          case e of
+            Just (Light (SphereLight (Sphere sphereCenter radius)) emission) ->
+              let pdf = pdfW * abs (dot normal (direction ray)) / (t * t)
+
+                  pdfOther = pdfSamplingCosinusMax cosThetaMax cosTheta / (radius * radius)
+                  cosThetaMax = radius / norm (sphereCenter --> origin ray)
+
+                  cosTheta = abs $ dot (normalize (sphereCenter --> x)) (direction ray)
+
+                  weight :: Float = pdf / (pdfOther + pdf)
+               in (if lastWasSpecular then 1 else weight) .*. emission .*. abs (dot normal (direction ray))
+            _ -> C 0 0 0
+        postLight c = albedo .*. c .+. visibleIndirect
 
     Just . postLight <$> case behavior of
       Glass ior -> do
@@ -171,7 +198,7 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
               then do
                 -- This choice was picked with PDF = coef, and is weighted by coef (the transmission factor). Both cancels
                 let transmittedRay = Ray (x .+. (epsilon * 3) .*. transmittedDirection) transmittedDirection
-                fromMaybe (C 0 0 0) <$> radiance scene True (depth + 1) transmittedRay g
+                fromMaybe (C 0 0 0) <$> radiance scene True (depth + 1) transmittedRay 0 g
               else -- This choice was picked with PDF = 1 - coef, and is weighted by 1 - coef (the transmission factor). Both cancels
                 mirrorContribution
       Mirror -> mirrorContribution
@@ -188,14 +215,14 @@ subRadiance scene lastWasSpecular depth ray g = case rayIntersect ray (objects s
         let (pdf, indirectDirection) = rotateVector trueReflectDirection <$> sampleCosinusLobe roughness uv
 
             coefIndirect = dot indirectDirection (flipDirection normal) / (2 * pi * pdf) * (roughness + 2) * rlFactor
-       
+
             -- Glossy shading
             trueReflectDirection = reflect (flipDirection normal) (direction ray)
             rlFactor = abs $ dot trueReflectDirection indirectDirection ** roughness
 
             indirectRay = Ray (x .+. epsilon .*. indirectDirection) indirectDirection
 
-        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance scene False (depth + 1) indirectRay g
+        contribIndirect <- fromMaybe (C 0 0 0) <$> radiance scene False (depth + 1) indirectRay pdf g
 
         pure $ directLightContrib .+. (coefIndirect .*. contribIndirect)
 
@@ -267,7 +294,7 @@ raytrace nSamples scene (fromIntegral -> x) (fromIntegral -> y) g = do
 
           d = normalize (n' --> f)
           ray = Ray n d
-      radiance scene True 0 ray g
+      radiance scene True 0 ray 0 g
 
 -- | Raytrace a 500x500 image, using the default scene, and saves it.
 raytraceImage :: RenderSettings -> IO ()
