@@ -43,6 +43,9 @@
     passthru = oldAttrs.passthru // { inherit shell shell_hls; };
   })).override {
       random = haskellPackages.random_1_2_0;
+      linear = pkgs.haskell.lib.dontCheck (haskellPackages.linear.override {
+        random = haskellPackages.random_1_2_0;
+      });
   };
 
   formatting-fix = pkgs.mkShell {
