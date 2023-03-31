@@ -1,10 +1,11 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:nixos/nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    PyF.url = "github:guibou/PyF";
   };
 
-  outputs = {nixpkgs, flake-utils, ...}:
+  outputs = {nixpkgs, flake-utils, PyF, ...}:
     flake-utils.lib.eachDefaultSystem (system:
 
     let pkgs = nixpkgs.legacyPackages.${system};
@@ -26,27 +27,20 @@
       };
 
       packages = rec {
-          haskellPackages = pkgs.haskellPackages.override {
-            overrides = self: super: {
-              #PyF = pkgs.haskell.lib.unmarkBroken super.PyF;
+          makePkgSet = hpkgs: hpkgs.override {
+            overrides = self: super: with pkgs.haskell.lib; {
               # used for asset loading
-              wavefront = pkgs.haskell.lib.unmarkBroken (pkgs.haskell.lib.doJailbreak super.wavefront);
-              # linear =
-              #   pkgs.haskell.lib.appendBuildFlag super.linear "--ghc-options=-haddock";
-              # JuicyPixels = pkgs.haskell.lib.appendBuildFlag super.JuicyPixels
-              #   "--ghc-options=-haddock";
+              wavefront = unmarkBroken (doJailbreak super.wavefront);
+              JuicyPixels = doJailbreak super.JuicyPixels;
+              PyF = super.callCabal2nix "PyF" PyF {};
+              binary-orphans = doJailbreak super.binary-orphans;
+              lens = doJailbreak super.lens;
             };
           };
 
-          default = ((haskellPackages.callCabal2nix "streamray" ./. {
-          }).overrideAttrs (oldAttrs: {
-            buildInputs = oldAttrs.buildInputs;
-          })).override {
-              #random = haskellPackages.random_1_2_0;
-              #linear = pkgs.haskell.lib.dontCheck (haskellPackages.linear.override {
-              #  random = haskellPackages.random_1_2_0;
-              #});
-          };
+          streamray_ghc92 = (makePkgSet pkgs.haskellPackages).callCabal2nix "streamray" ./. {};
+          streamray_ghc96 = (makePkgSet pkgs.haskell.packages.ghc961).callCabal2nix "streamray" ./. {};
+          default = streamray_ghc92;
       };
     }
   );
