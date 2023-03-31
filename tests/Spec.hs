@@ -5,6 +5,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Monoid law, right identity" #-}
 
 import qualified Control.Exception as E
 import Control.Monad
@@ -129,10 +131,10 @@ main = hspec $ do
         property $ \n -> rotateVector n (N 0 0 1) `shouldApproxVector` n
     describe "make base" $ do
       it "works with 0 z" $ do
-        makeBase (N 1 0 0) `shouldBe` (N 0 0 (-1), N 0 1 0)
+        makeBase (N 1 0 0) `shouldBe` Base (N 0 0 (-1)) (N 0 1 0)
       it "property: orthonormal" $ do
         property $ \n -> do
-          let (baseX, baseY) = makeBase n
+          let Base baseX baseY = makeBase n
           baseX `dot` baseY `shouldApprox` 0
           baseX `dot` n `shouldApprox` 0
           n `dot` baseY `shouldApprox` 0

@@ -1,6 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | Sampling interface
 module Streamray.Sampling
@@ -16,6 +14,7 @@ module Streamray.Sampling
     sampleCosinusLobe,
     pdfSampleCosinusLobe,
     pdfSamplingCosinusMax,
+    Base(..),
   )
 where
 
@@ -138,8 +137,9 @@ pdfSamplingCosinusMax cosThetaMax cosTheta = cosTheta / (pi * sin_theta_max2)
     sin_theta_max2 = 1 - cosThetaMax * cosThetaMax
 
 data Base = Base {-# UNPACK #-} !(V3 ('Direction 'Normalized)) {-# UNPACK #-} !(V3 ('Direction 'Normalized))
+  deriving (Eq, Show)
 
-{- INLINE makeBase #-}
+{-# INLINE makeBase #-}
 
 -- | Basis rotation, based on http://jcgt.org/published/0006/01/01/ Building an Orthonormal Basis, Revisited
 makeBase ::

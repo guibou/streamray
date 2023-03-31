@@ -22,7 +22,7 @@ maintainer:         guillaum.bouchard@gmail.com
 extra-source-files: CHANGELOG.md
 
 library
-    build-depends:    base ^>=4.14.1.0
+    build-depends:    base
                     , JuicyPixels
                     , random
                     , async
@@ -70,7 +70,7 @@ executable streamray
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.14.1.0, streamray, optparse-applicative
+    build-depends:    base, streamray, optparse-applicative
     hs-source-dirs:   app
     default-language: Haskell2010
     ghc-options: -Wall -haddock -rtsopts -threaded "-with-rtsopts=-N -qg -T"
